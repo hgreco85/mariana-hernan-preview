@@ -13,19 +13,19 @@ const match = indexHtml.match(/const __CATALOG__\s*=\s*(\[[\s\S]*?\]);\s*start/)
 assert.ok(match, 'Catalog array should be present in index.html');
 const catalog = JSON.parse(match[1]);
 
-test('Catalog has exactly 65 active experiences', () => {
-  assert.equal(catalog.length, 65, `Expected 65 items, got ${catalog.length}`);
+test('Catalog has exactly 62 active experiences', () => {
+  assert.equal(catalog.length, 62, `Expected 62 items, got ${catalog.length}`);
 });
 
 test('Active experience IDs are unique, valid and exclude editorially archived IDs', () => {
   const ids = catalog.map(x => x.id);
   const uniqueIds = new Set(ids);
-  assert.equal(uniqueIds.size, 65, 'All IDs must be unique');
+  assert.equal(uniqueIds.size, 62, 'All IDs must be unique');
 
   for (const id of ids) {
     assert.match(id, /^V09-\d{3}$/, 'Malformed experience ID: ' + id);
   }
-  const archived = new Set(["V09-002","V09-005","V09-013","V09-016","V09-025","V09-032","V09-035","V09-037","V09-038","V09-049","V09-052","V09-060","V09-062","V09-073","V09-079"]);
+  const archived = new Set(["V09-002","V09-005","V09-009","V09-013","V09-016","V09-021","V09-025","V09-033","V09-035","V09-037","V09-038","V09-049","V09-052","V09-060","V09-062","V09-068","V09-079","V09-080"]);
   for (const id of archived) assert.ok(!uniqueIds.has(id), 'Archived ID unexpectedly visible: ' + id);
 });
 
@@ -52,7 +52,7 @@ test('Pricing in USD is positive and reasonable', () => {
   }
 });
 
-test('Photographs: all 65 active items have valid distinct HTTPS photo URLs', () => {
+test('Photographs: all 62 active items have valid distinct HTTPS photo URLs', () => {
   const urls = catalog.map(x => x.photo);
   for (const item of catalog) {
     assert.ok(item.photo.startsWith('https://'), `Photo must be HTTPS for ${item.id}: ${item.photo}`);
@@ -62,7 +62,7 @@ test('Photographs: all 65 active items have valid distinct HTTPS photo URLs', ()
     );
   }
   const uniqueUrls = new Set(urls);
-  assert.equal(uniqueUrls.size, 65, `Expected 65 distinct photos, found ${uniqueUrls.size}`);
+  assert.equal(uniqueUrls.size, 62, `Expected 62 distinct photos, found ${uniqueUrls.size}`);
 });
 
 test('Bilingual content: titles and descriptions in ES and PT', () => {
@@ -72,4 +72,17 @@ test('Bilingual content: titles and descriptions in ES and PT', () => {
     assert.ok(item.description && item.description.trim().length > 0, `Missing ES description in ${item.id}`);
     assert.ok(item.descriptionPt && item.descriptionPt.trim().length > 0, `Missing PT description in ${item.id}`);
   }
+});
+
+test('No wheel, paid-only-on-foot walking gifts, or duplicate schnitzel dinner', () => {
+  const ids = new Set(catalog.map(x => x.id));
+  for (const id of ['V09-080','V09-021','V09-009','V09-033','V09-068']) {
+    assert.ok(!ids.has(id), 'Rejected free-walking or giant-wheel item still visible: '+id);
+  }
+  assert.ok(ids.has('V09-032') && ids.has('V09-073'), 'Restored museum and brewery missing');
+  const palace=catalog.find(x=>x.id==='V09-076');
+  assert.match(palace.title, /entrada/i);
+  assert.match(palace.description, /interior|salones/i);
+  assert.match(catalog.find(x=>x.id==='V09-075').description.toLowerCase(), /tafelspitz/);
+  assert.notEqual(catalog.find(x=>x.id==='V09-074').photo,catalog.find(x=>x.id==='V09-075').photo);
 });
