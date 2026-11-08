@@ -23,7 +23,7 @@ test('Active experience IDs are unique, valid and exclude editorially archived I
   assert.equal(uniqueIds.size, 65, 'All IDs must be unique');
 
   for (const id of ids) {
-    assert.match(id, /^V09-\\d{3}$/, 'Malformed experience ID: ' + id);
+    assert.match(id, /^V09-\d{3}$/, 'Malformed experience ID: ' + id);
   }
   const archived = new Set(["V09-002","V09-005","V09-013","V09-016","V09-025","V09-032","V09-035","V09-037","V09-038","V09-049","V09-052","V09-060","V09-062","V09-073","V09-079"]);
   for (const id of archived) assert.ok(!uniqueIds.has(id), 'Archived ID unexpectedly visible: ' + id);
