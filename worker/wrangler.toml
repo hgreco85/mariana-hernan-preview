@@ -1,0 +1,21 @@
+name = "mp-webhook"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+[vars]
+# Active Apps Script deployment URL (Web App staging v36)
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx5YvudciPjG0OUmqSjOocMHxLMFZy2MTN9V3VrBb5FQP_VK1B7O3T3z8aiZP574K1E/exec"
+# Strict Orders API mode (no automatic fallback to preferences)
+MP_API_MODE = "orders"
+# Set to 'true' only when authorized for live payments; default 'false' (sandbox/staging)
+LIVE_MODE = "false"
+# Return URL after Mercado Pago checkout
+APP_URL = "https://hgreco85.github.io/mariana-hernan-preview/"
+
+# SENSITIVE SECRETS: Do NOT place secret values in this file!
+# Production/staging secrets stay in Cloudflare (`wrangler secret put <NAME>`).
+# Local sandbox only: `node ../scripts/load-mp-local-secrets.mjs` writes gitignored
+# .dev.vars (MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET) for `wrangler dev`. Never commit it.
+# - SHARED_SECRET
+# - MP_ACCESS_TOKEN
+# - MP_WEBHOOK_SECRET

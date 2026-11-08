@@ -1,0 +1,7 @@
+# Cloudflare Worker local secrets template (.dev.vars)
+# Copy this file to .dev.vars for local testing with 'wrangler dev'
+# NEVER commit .dev.vars to version control.
+
+SHARED_SECRET=your_backend_shared_secret_here
+MP_ACCESS_TOKEN=TEST-your-mercado-pago-test-access-token
+MP_WEBHOOK_SECRET=your-mercado-pago-webhook-secret
