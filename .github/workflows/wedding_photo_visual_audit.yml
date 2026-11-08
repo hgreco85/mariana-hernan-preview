@@ -1,0 +1,25 @@
+name: Wedding 65 photo visual audit
+on:
+  push:
+    branches: [audit/wedding-65-photo-contact-20261108]
+permissions:
+  contents: write
+jobs:
+  contact-sheet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pillow requests
+      - name: Download all 65 existing image links and render contact sheets
+        run: python scripts/photo_audit_contact_sheet.py
+      - name: Persist QA findings on audit branch (never deployed)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add photo_audit/
+          git diff --cached --quiet || git commit -m "Add 65-photo QA contact sheets and HTTP manifest [skip ci]"
+          git push
