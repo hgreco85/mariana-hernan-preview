@@ -1,0 +1,19 @@
+# Environment and secrets
+.dev.vars
+.env
+.env.*
+!.env.example
+
+# Clasp & credentials
+.clasprc.json
+
+# Node & dependencies
+node_modules/
+npm-debug.log*
+
+# Wrangler build artifacts
+.wrangler/
+
+# OS artifacts
+Thumbs.db
+.DS_Store

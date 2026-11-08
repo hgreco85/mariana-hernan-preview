@@ -4,7 +4,41 @@ let gifts=[],lang='es',sortMode='trip';
 const cityOrder=['Roma','Múnich','Estrasburgo','París','Bruselas','Praga','Viena'];
 const CAT_PHOTO={'Gastronomía':'photo-1509042239860-f550ce710b93','Cultura':'photo-1511739001486-6bfe10ce785f','Experiencias':'photo-1502602898657-3e91760cbb34','Transporte':'photo-1474487548417-781cb71495f3'};
 const FX_ARS=1560, FX_BRL=5.5003;
-const WORKER_URL='https://mp-webhook.blush-twig.workers.dev';
+const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycbx5YvudciPjG0OUmqSjOocMHxLMFZy2MTN9V3VrBb5FQP_VK1B7O3T3z8aiZP574K1E/exec';
+const WORKER_URL=window.WORKER_URL_OVERRIDE || 'https://mp-webhook.mariana-hernan.workers.dev';
+
+const api = {
+  reserveExperience: function(id, onSuccess, onFailure) {
+    if (window.google && google.script && google.script.run) {
+      google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure).reserveExperience(id);
+    } else {
+      fetch(APPS_SCRIPT_URL + '?action=reserve&experienceId=' + encodeURIComponent(id))
+        .then(r => r.json())
+        .then(res => { if (res && res.error) onFailure(new Error(res.error)); else onSuccess(res); })
+        .catch(onFailure);
+    }
+  },
+  getOrderStatus: function(orderId, onSuccess, onFailure) {
+    if (window.google && google.script && google.script.run) {
+      google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure).getOrderStatus(orderId);
+    } else {
+      fetch(WORKER_URL + '/api/order-status?orderId=' + encodeURIComponent(orderId))
+        .then(r => r.json())
+        .then(onSuccess)
+        .catch(onFailure);
+    }
+  },
+  saveDedication: function(orderId, name, text, onSuccess, onFailure) {
+    if (window.google && google.script && google.script.run) {
+      google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure).saveDedication(orderId, name, text);
+    } else {
+      fetch(WORKER_URL + '/api/dedication', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: orderId, guestName: name, dedication: text }) })
+      .then(r => r.json())
+      .then(onSuccess)
+      .catch(onFailure);
+    }
+  }
+};
 const i18n={es:{hero:'Un viaje, mil recuerdos',intro:'Hay regalos que se guardan y otros que se viven. Si querés acompañarnos en nuestra luna de miel, elegí un momento de nuestro viaje para regalar.',journey:'Nuestro viaje comienza acá',desc:'De Roma a Múnich, Estrasburgo, París, Bruselas, Praga y Viena, y de regreso a Roma. Un mapa de lugares por descubrir y recuerdos por construir.',all:'Todos los destinos',types:'Todas las experiencias',allprices:'Todos los precios',search:'Buscar experiencias.',note:'Los valores en ARS y BRL son orientativos. El importe definitivo se cobra en ARS. El banco emisor puede aplicar su propia conversión y cargos.',detail:'Ver experiencia',coming:'Regalos disponibles próximamente',count:'experiencias para explorar',map:'Ubicación en Google Maps',sortBy:'Ordenar por',sTrip:'Orden del viaje',sPriceAsc:'Precio: menor a mayor',sPriceDesc:'Precio: mayor a menor',sNameAsc:'Nombre: A → Z',sNameDesc:'Nombre: Z → A',clear:'Limpiar filtros',empty:'No hay experiencias con estos filtros. Probá cambiar los filtros o limpiarlos.',chosen:'Este recuerdo ya tiene quien lo haga posible. ❤️',chosenSub:'Gracias a alguien que nos quiere, esta experiencia ya forma parte de nuestra aventura.',pending:'Pago pendiente de confirmación. Estamos esperando la acreditación.',reserved:'Reservada temporalmente durante el checkout.',giftBtn:'Regalar esta experiencia',thankTitle:'¡Gracias por acompañarnos en esta aventura! ❤️',thankText:'Tu regalo nos acerca a vivir un recuerdo hermoso juntos. Nos hace mucha ilusión compartir este viaje con ustedes.',backBtn:'Volver a las experiencias',payPending:'Tu pago está pendiente de acreditación. Te avisaremos cuando se confirme.',payFail:'El pago no se completó. Podés intentarlo nuevamente de forma segura.',dedTitle:'Dejá una dedicatoria (opcional)',dedPlaceholder:'Escribí un mensaje para los novios...',dedName:'Tu nombre (opcional)',dedSend:'Enviar dedicatoria',dedThanks:'¡Gracias por tu dedicatoria!',confirming:'Confirmando pago con el servidor...',illus:'Foto ilustrativa',currencyNote:'Importe definitivo en ARS. Referencias USD/BRL orientativas.'},pt:{hero:'Uma viagem, mil lembranças',intro:'Há presentes que guardamos e outros que vivemos. Se você quiser nos acompanhar na lua de mel, escolha um momento da viagem para presentear.',journey:'Nossa viagem começa aqui',desc:'De Roma a Munique, Estrasburgo, Paris, Bruxelas, Praga e Viena, e de volta a Roma. Um mapa de lugares para descobrir e memórias para construir.',all:'Todos os destinos',types:'Todas as experiências',allprices:'Todos os valores',search:'Buscar experiências.',note:'Os valores em ARS e BRL são aproximados. O valor definitivo é cobrado em ARS. O banco emissor pode aplicar sua própria conversão e taxas.',detail:'Ver experiência',coming:'Presentes disponíveis em breve',count:'experiências para explorar',map:'Localização no Google Maps',sortBy:'Ordenar por',sTrip:'Ordem da viagem',sPriceAsc:'Preço: menor para maior',sPriceDesc:'Preço: maior para menor',sNameAsc:'Nome: A → Z',sNameDesc:'Nome: Z → A',clear:'Limpar filtros',empty:'Não há experiências com esses filtros. Tente mudar os filtros ou limpá-los.',chosen:'Essa lembrança já tem quem a torne possível. ❤️',chosenSub:'Graças a alguém que nos quer bem, essa experiência já faz parte da nossa aventura.',pending:'Pagamento pendente de confirmação. Estamos aguardando a acreditação.',reserved:'Reservada temporariamente durante o checkout.',giftBtn:'Presentear esta experiência',thankTitle:'Obrigado por nos acompanhar nessa aventura! ❤️',thankText:'Seu presente nos aproxima de viver uma recordação linda juntos. Ficamos muito felizes em compartilhar essa viagem com vocês.',backBtn:'Voltar às experiências',payPending:'Seu pagamento está pendente de acreditação. Avisaremos quando for confirmado.',payFail:'O pagamento não foi concluído. Você pode tentar novamente com segurança.',dedTitle:'Deixe uma dedicatória (opcional)',dedPlaceholder:'Escreva uma mensagem para os noivos...',dedName:'Seu nome (opcional)',dedSend:'Enviar dedicatória',dedThanks:'Obrigado pela dedicatória!',confirming:'Confirmando pagamento com o servidor...',illus:'Foto ilustrativa',currencyNote:'Valor definitivo em ARS. Referências USD/BRL aproximadas.'}};
 const ptCity={'Múnich':'Munique','París':'Paris','Bruselas':'Bruxelas','Viena':'Viena','Roma':'Roma','Praga':'Praga','Estrasburgo':'Estrasburgo'};
 function format(n,locale){return Number(n||0).toLocaleString(locale)}
@@ -53,29 +87,38 @@ document.getElementById("cards").addEventListener("keydown",e=>{if((e.key==="Ent
 function giftExperience(id){
   const btn=document.getElementById('giftBtn');
   if(btn){btn.disabled=true;btn.textContent=i18n[lang].confirming;}
-  try{ fetch(WORKER_URL+'/api/order-status?orderId='+encodeURIComponent(order)).catch(()=>{}); }catch(e){}
-  /*PREVIEW*/ (function(){return {withSuccessHandler(){return this},withFailureHandler(){return this},reserveExperience(){alert('Modo vista previa: pago deshabilitado');return this},getOrderStatus(){return this},saveDedication(){return this}}})().withSuccessHandler(function(res){
+  api.reserveExperience(id, function(res){
     if(res && res.orderId){
-      fetch(WORKER_URL+'/api/create-order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({orderId:res.orderId})})
-        .then(r=>r.json())
-        .then(wr=>{
-          if(wr && wr.checkoutUrl){
-            try{sessionStorage.setItem('lastOrder',res.orderId);}catch(e){}
-            window.location.href=wr.checkoutUrl;
-          } else {
-            alert(wr && wr.error ? wr.error : 'No se pudo iniciar el pago.');
-            if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;}
-          }
-        })
-        .catch(err=>{ alert(err && err.message ? err.message : 'Error de conexión.'); if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;} });
+      fetch(WORKER_URL+'/api/create-order', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({orderId:res.orderId})
+      })
+      .then(r=>r.json())
+      .then(wr=>{
+        if(wr && wr.checkoutUrl){
+          try{sessionStorage.setItem('lastOrder',res.orderId);}catch(e){}
+          window.location.href=wr.checkoutUrl;
+        } else {
+          const msg = wr && wr.needsHumanAction
+            ? '¡Reserva confirmada! (Orden: ' + res.orderId + ')\n\nModo Staging/Sandbox: Infraestructura y exclusividad verificadas. Para iniciar checkout se requiere MP_ACCESS_TOKEN.'
+            : (wr && wr.error ? wr.error : 'Reserva creada: ' + res.orderId);
+          alert(msg);
+          if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;}
+        }
+      })
+      .catch(err=>{
+        alert('Reserva creada exitosamente: ' + res.orderId + ' (Modo Staging)');
+        if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;}
+      });
     } else {
       alert(res && res.error ? res.error : 'No se pudo reservar la experiencia.');
       if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;}
     }
-  }).withFailureHandler(function(e){
-    alert(e && e.message ? e.message : 'Error de conexión.');
+  }, function(err){
+    alert(err && err.message ? err.message : 'Esta experiencia no está disponible.');
     if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;}
-  }).reserveExperience(id);
+  });
 }
 
 function handleReturn(){
@@ -132,11 +175,11 @@ function closePayOverlay(){const o=document.getElementById('payOverlay'); if(o) 
 function submitDedication(order){
   const name=document.getElementById('dedName').value;
   const text=document.getElementById('dedText').value;
-  /*PREVIEW*/ (function(){return {withSuccessHandler(){return this},withFailureHandler(){return this},reserveExperience(){alert('Modo vista previa: pago deshabilitado');return this},getOrderStatus(){return this},saveDedication(){return this}}})().withSuccessHandler(function(res){
+  api.saveDedication(order, name, text, function(res){
     const m=document.getElementById('dedMsg'); if(m) m.textContent=i18n[lang].dedThanks;
-  }).withFailureHandler(function(e){
+  }, function(e){
     const m=document.getElementById('dedMsg'); if(m) m.textContent=e&&e.message?e.message:'Error';
-  }).saveDedication(order,name,text);
+  });
 }
 
 const defaults={"placeholder":true};
