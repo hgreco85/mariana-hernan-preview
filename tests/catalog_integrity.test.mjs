@@ -13,19 +13,20 @@ const match = indexHtml.match(/const __CATALOG__\s*=\s*(\[[\s\S]*?\]);\s*start/)
 assert.ok(match, 'Catalog array should be present in index.html');
 const catalog = JSON.parse(match[1]);
 
-test('Catalog has exactly 80 experiences', () => {
-  assert.equal(catalog.length, 80, `Expected 80 items, got ${catalog.length}`);
+test('Catalog has exactly 65 active experiences', () => {
+  assert.equal(catalog.length, 65, `Expected 65 items, got ${catalog.length}`);
 });
 
-test('Experience IDs are unique and formatted V09-001 through V09-080', () => {
+test('Active experience IDs are unique, valid and exclude editorially archived IDs', () => {
   const ids = catalog.map(x => x.id);
   const uniqueIds = new Set(ids);
-  assert.equal(uniqueIds.size, 80, 'All IDs must be unique');
+  assert.equal(uniqueIds.size, 65, 'All IDs must be unique');
 
-  for (let i = 1; i <= 80; i++) {
-    const expectedId = `V09-${String(i).padStart(3, '0')}`;
-    assert.ok(uniqueIds.has(expectedId), `Missing ID: ${expectedId}`);
+  for (const id of ids) {
+    assert.match(id, /^V09-\d{3}$/, 'Malformed experience ID: ' + id);
   }
+  const archived = new Set(["V09-002","V09-005","V09-013","V09-016","V09-025","V09-032","V09-035","V09-037","V09-038","V09-049","V09-052","V09-060","V09-062","V09-073","V09-079"]);
+  for (const id of archived) assert.ok(!uniqueIds.has(id), 'Archived ID unexpectedly visible: ' + id);
 });
 
 test('All itinerary cities are present in order', () => {
@@ -51,7 +52,7 @@ test('Pricing in USD is positive and reasonable', () => {
   }
 });
 
-test('Photographs: all 80 items have valid distinct HTTPS photo URLs', () => {
+test('Photographs: all 65 active items have valid distinct HTTPS photo URLs', () => {
   const urls = catalog.map(x => x.photo);
   for (const item of catalog) {
     assert.ok(item.photo.startsWith('https://'), `Photo must be HTTPS for ${item.id}: ${item.photo}`);
@@ -61,7 +62,7 @@ test('Photographs: all 80 items have valid distinct HTTPS photo URLs', () => {
     );
   }
   const uniqueUrls = new Set(urls);
-  assert.equal(uniqueUrls.size, 80, `Expected 80 distinct photos, found ${uniqueUrls.size}`);
+  assert.equal(uniqueUrls.size, 65, `Expected 65 distinct photos, found ${uniqueUrls.size}`);
 });
 
 test('Bilingual content: titles and descriptions in ES and PT', () => {
