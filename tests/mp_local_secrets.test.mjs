@@ -109,7 +109,9 @@ test('loader writes gitignored .dev.vars from fake files and does not print them
     assert.match(written, /OTHER=1/);
     assert.match(written, new RegExp('MP_ACCESS_TOKEN="' + FAKE_TOKEN + '"'));
     assert.match(written, new RegExp('MP_WEBHOOK_SECRET="' + FAKE_WEBHOOK + '"'));
-    assert.equal(fs.statSync(devVars).mode & 0o777, 0o600);
+    if (process.platform !== 'win32') {
+      assert.equal(fs.statSync(devVars).mode & 0o777, 0o600);
+    }
     assert.equal(fs.lstatSync(devVars).isSymbolicLink(), false);
   } finally {
     fs.rmSync(devVars, { force: true });
