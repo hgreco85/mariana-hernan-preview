@@ -31,7 +31,7 @@ def fetch(args):
   url=item['photo']
   record=dict(id=item['id'],city=item['city'],title=item['title'],url=url,host=urlparse(url).netloc)
   try:
-    resp=requests.get(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HG-Wedding-Photo-QA/1.0)'},timeout=22)
+    resp=requests.get(url.replace('https://upload.wikimedia.org/wikipedia/commons/thumb/','https://thumb.wikimedia.org/wikipedia/commons/thumb/'),headers={'User-Agent':'Mozilla/5.0 (compatible; HG-Wedding-Photo-QA/1.0)'},timeout=22)
     resp.raise_for_status()
     im=Image.open(io.BytesIO(resp.content))
     im.load()
@@ -47,7 +47,7 @@ def fetch(args):
     record.update(ok=False,error=f"{type(exc).__name__}: {str(exc)[:170]}")
     return(idx,record,None)
 
-with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
   results=sorted(pool.map(fetch,enumerate(items)),key=lambda x:x[0])
 report=[r for _,r,_ in results]
 (out/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
