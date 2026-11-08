@@ -277,3 +277,178 @@ test('Public Dedication: Guest can submit dedication without client secret', asy
     globalThis.fetch = origFetch;
   }
 });
+
+test('Webhook processes "Order (Mercado Pago)" Checkout Pro event (type: order)', async () => {
+  const origFetch = globalThis.fetch;
+  const mpOrderId = 'order-mp-998877';
+  const reqId = 'req-order-test-1';
+  const ts = Math.floor(Date.now() / 1000);
+  const sigHeader = generateSignature(MP_WEBHOOK_SECRET, mpOrderId, reqId, ts);
+
+  let mpOrderFetched = false;
+  let appsScriptConfirmedPayload = null;
+
+  globalThis.fetch = async (url, opts) => {
+    const urlStr = String(url);
+    if (urlStr.includes('/v1/orders/' + mpOrderId)) {
+      mpOrderFetched = true;
+      assert.equal(opts.headers['Authorization'], 'Bearer ' + mockEnv.MP_ACCESS_TOKEN);
+      return new Response(JSON.stringify({
+        id: mpOrderId,
+        status: 'closed',
+        external_reference: 'ORD-TEST-ORDER-API-1',
+        transactions: {
+          payments: [
+            {
+              id: 'pay-mp-554433',
+              status: 'approved',
+              transaction_amount: 120000
+            }
+          ]
+        }
+      }), { status: 200 });
+    }
+    if (urlStr.includes('mock.script.google.com')) {
+      appsScriptConfirmedPayload = JSON.parse(opts.body);
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }
+    throw new Error('Unexpected fetch call: ' + urlStr);
+  };
+
+  try {
+    const req = new Request('https://worker.test/webhook/mp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-signature': sigHeader,
+        'x-request-id': reqId
+      },
+      body: JSON.stringify({
+        action: 'order.updated',
+        api_version: 'v1',
+        data: { id: mpOrderId },
+        type: 'order'
+      })
+    });
+
+    const res = await worker.fetch(req, mockEnv);
+    assert.equal(res.status, 200);
+    const text = await res.text();
+    assert.equal(text, 'ok');
+
+    assert.equal(mpOrderFetched, true, 'Worker must query /v1/orders/{id}');
+    assert.ok(appsScriptConfirmedPayload, 'Worker must forward confirmation to Apps Script');
+    assert.equal(appsScriptConfirmedPayload.type, 'confirm');
+    assert.equal(appsScriptConfirmedPayload.orderId, 'ORD-TEST-ORDER-API-1');
+    assert.equal(appsScriptConfirmedPayload.status, 'approved');
+    assert.equal(appsScriptConfirmedPayload.paymentId, 'pay-mp-554433');
+    assert.equal(appsScriptConfirmedPayload.secret, mockEnv.SHARED_SECRET);
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
+test('Webhook processes "merchant_order" IPN notification', async () => {
+  const origFetch = globalThis.fetch;
+  const merchantOrderId = 'mo-776655';
+  const reqId = 'req-mo-test-1';
+  const ts = Math.floor(Date.now() / 1000);
+  const sigHeader = generateSignature(MP_WEBHOOK_SECRET, merchantOrderId, reqId, ts);
+
+  let moFetched = false;
+  let appsScriptConfirmedPayload = null;
+
+  globalThis.fetch = async (url, opts) => {
+    const urlStr = String(url);
+    if (urlStr.includes('/merchant_orders/' + merchantOrderId)) {
+      moFetched = true;
+      return new Response(JSON.stringify({
+        id: merchantOrderId,
+        order_status: 'paid',
+        external_reference: 'ORD-TEST-MO-1',
+        payments: [{ id: 'pay-mo-1122', status: 'approved' }]
+      }), { status: 200 });
+    }
+    if (urlStr.includes('mock.script.google.com')) {
+      appsScriptConfirmedPayload = JSON.parse(opts.body);
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }
+    throw new Error('Unexpected fetch call: ' + urlStr);
+  };
+
+  try {
+    const req = new Request(`https://worker.test/webhook/mp?topic=merchant_order&id=${merchantOrderId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-signature': sigHeader,
+        'x-request-id': reqId
+      },
+      body: JSON.stringify({ resource: `https://api.mercadopago.com/merchant_orders/${merchantOrderId}`, topic: 'merchant_order' })
+    });
+
+    const res = await worker.fetch(req, mockEnv);
+    assert.equal(res.status, 200);
+    assert.equal(moFetched, true);
+    assert.ok(appsScriptConfirmedPayload);
+    assert.equal(appsScriptConfirmedPayload.orderId, 'ORD-TEST-MO-1');
+    assert.equal(appsScriptConfirmedPayload.status, 'approved');
+    assert.equal(appsScriptConfirmedPayload.paymentId, 'pay-mo-1122');
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
+test('Webhook processes "payment" notification (v1/payments fallback/direct)', async () => {
+  const origFetch = globalThis.fetch;
+  const paymentId = 'pay-998811';
+  const reqId = 'req-pay-test-1';
+  const ts = Math.floor(Date.now() / 1000);
+  const sigHeader = generateSignature(MP_WEBHOOK_SECRET, paymentId, reqId, ts);
+
+  let paymentFetched = false;
+  let appsScriptConfirmedPayload = null;
+
+  globalThis.fetch = async (url, opts) => {
+    const urlStr = String(url);
+    if (urlStr.includes('/v1/payments/' + paymentId)) {
+      paymentFetched = true;
+      return new Response(JSON.stringify({
+        id: paymentId,
+        status: 'approved',
+        external_reference: 'ORD-TEST-PAY-1'
+      }), { status: 200 });
+    }
+    if (urlStr.includes('mock.script.google.com')) {
+      appsScriptConfirmedPayload = JSON.parse(opts.body);
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }
+    throw new Error('Unexpected fetch call: ' + urlStr);
+  };
+
+  try {
+    const req = new Request('https://worker.test/webhook/mp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-signature': sigHeader,
+        'x-request-id': reqId
+      },
+      body: JSON.stringify({
+        action: 'payment.updated',
+        data: { id: paymentId },
+        type: 'payment'
+      })
+    });
+
+    const res = await worker.fetch(req, mockEnv);
+    assert.equal(res.status, 200);
+    assert.equal(paymentFetched, true);
+    assert.ok(appsScriptConfirmedPayload);
+    assert.equal(appsScriptConfirmedPayload.orderId, 'ORD-TEST-PAY-1');
+    assert.equal(appsScriptConfirmedPayload.status, 'approved');
+    assert.equal(appsScriptConfirmedPayload.paymentId, paymentId);
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});

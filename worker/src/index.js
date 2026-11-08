@@ -344,27 +344,121 @@ export default {
         return new Response('invalid signature', { status: 401, headers: CORS });
       }
 
-      // Extract payment ID
-      const paymentId = url.searchParams.get('data.id') ||
-                        url.searchParams.get('id') ||
-                        (body && body.data && body.data.id) ||
-                        body.id ||
-                        null;
+      // Extract resource ID and event type/topic
+      const resourceId = url.searchParams.get('data.id') ||
+                         url.searchParams.get('id') ||
+                         (body && body.data && body.data.id) ||
+                         (body && body.id) ||
+                         null;
+
+      const eventType = (body && body.type) || url.searchParams.get('type') || '';
+      const eventTopic = (body && body.topic) || url.searchParams.get('topic') || '';
+      const eventAction = (body && body.action) || url.searchParams.get('action') || '';
 
       const token = env.MP_ACCESS_TOKEN;
       let mpStatus = 'pending';
-      let mpPaymentId = paymentId;
+      let mpPaymentId = resourceId ? String(resourceId) : '';
       let orderId = null;
 
-      if (token && token !== 'REPLACE_WITH_MP_ACCESS_TOKEN' && paymentId) {
-        const resp = await fetch('https://api.mercadopago.com/v1/payments/' + encodeURIComponent(paymentId), {
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-        if (resp.status === 200) {
-          const p = await resp.json();
-          mpStatus = p.status || mpStatus;
-          mpPaymentId = p.id || mpPaymentId;
-          orderId = p.external_reference;
+      if (token && token !== 'REPLACE_WITH_MP_ACCESS_TOKEN' && resourceId) {
+        const isOrderEvent = eventType === 'order' || eventTopic === 'order' || eventAction.startsWith('order.');
+        const isMerchantOrderEvent = eventType === 'merchant_order' || eventTopic === 'merchant_order' || eventAction.startsWith('merchant_order.');
+        const isPaymentEvent = eventType === 'payment' || eventTopic === 'payment' || eventAction.startsWith('payment.');
+
+        const authHeaders = { 'Authorization': 'Bearer ' + token };
+
+        if (isOrderEvent) {
+          const resp = await fetch('https://api.mercadopago.com/v1/orders/' + encodeURIComponent(resourceId), { headers: authHeaders });
+          if (resp.status === 200) {
+            const o = await resp.json();
+            orderId = o.external_reference || null;
+            mpStatus = o.status || 'pending';
+            const payments = o.transactions && Array.isArray(o.transactions.payments) ? o.transactions.payments : [];
+            const approved = payments.find(p => p.status === 'approved');
+            if (approved) {
+              mpStatus = 'approved';
+              mpPaymentId = String(approved.id || mpPaymentId);
+            } else if (payments.length > 0) {
+              const last = payments[payments.length - 1];
+              mpStatus = last.status || mpStatus;
+              mpPaymentId = String(last.id || mpPaymentId);
+            } else if (o.status === 'processed' || o.status === 'closed') {
+              mpStatus = 'approved';
+            }
+          }
+        } else if (isMerchantOrderEvent) {
+          const resp = await fetch('https://api.mercadopago.com/merchant_orders/' + encodeURIComponent(resourceId), { headers: authHeaders });
+          if (resp.status === 200) {
+            const m = await resp.json();
+            orderId = m.external_reference || null;
+            const payments = Array.isArray(m.payments) ? m.payments : [];
+            const approved = payments.find(p => p.status === 'approved');
+            if (m.order_status === 'paid' || approved) {
+              mpStatus = 'approved';
+              if (approved) mpPaymentId = String(approved.id);
+            } else if (payments.length > 0) {
+              const last = payments[payments.length - 1];
+              mpStatus = last.status || m.status || 'pending';
+              mpPaymentId = String(last.id || mpPaymentId);
+            } else {
+              mpStatus = m.status || 'pending';
+            }
+          }
+        } else if (isPaymentEvent) {
+          const resp = await fetch('https://api.mercadopago.com/v1/payments/' + encodeURIComponent(resourceId), { headers: authHeaders });
+          if (resp.status === 200) {
+            const p = await resp.json();
+            mpStatus = p.status || mpStatus;
+            mpPaymentId = String(p.id || mpPaymentId);
+            orderId = p.external_reference || null;
+          }
+        } else {
+          // Unspecified event type: probe Orders API first, then Payments API, then Merchant Orders API
+          let resolved = false;
+          const orderResp = await fetch('https://api.mercadopago.com/v1/orders/' + encodeURIComponent(resourceId), { headers: authHeaders });
+          if (orderResp.status === 200) {
+            const o = await orderResp.json();
+            orderId = o.external_reference || null;
+            mpStatus = o.status || 'pending';
+            const payments = o.transactions && Array.isArray(o.transactions.payments) ? o.transactions.payments : [];
+            const approved = payments.find(p => p.status === 'approved');
+            if (approved) {
+              mpStatus = 'approved';
+              mpPaymentId = String(approved.id || mpPaymentId);
+            } else if (payments.length > 0) {
+              const last = payments[payments.length - 1];
+              mpStatus = last.status || mpStatus;
+              mpPaymentId = String(last.id || mpPaymentId);
+            } else if (o.status === 'processed' || o.status === 'closed') {
+              mpStatus = 'approved';
+            }
+            resolved = true;
+          }
+          if (!resolved) {
+            const payResp = await fetch('https://api.mercadopago.com/v1/payments/' + encodeURIComponent(resourceId), { headers: authHeaders });
+            if (payResp.status === 200) {
+              const p = await payResp.json();
+              mpStatus = p.status || mpStatus;
+              mpPaymentId = String(p.id || mpPaymentId);
+              orderId = p.external_reference || null;
+              resolved = true;
+            }
+          }
+          if (!resolved) {
+            const moResp = await fetch('https://api.mercadopago.com/merchant_orders/' + encodeURIComponent(resourceId), { headers: authHeaders });
+            if (moResp.status === 200) {
+              const m = await moResp.json();
+              orderId = m.external_reference || null;
+              const payments = Array.isArray(m.payments) ? m.payments : [];
+              const approved = payments.find(p => p.status === 'approved');
+              if (m.order_status === 'paid' || approved) {
+                mpStatus = 'approved';
+                if (approved) mpPaymentId = String(approved.id);
+              } else {
+                mpStatus = m.status || 'pending';
+              }
+            }
+          }
         }
       }
 
