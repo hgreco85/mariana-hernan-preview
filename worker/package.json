@@ -7,7 +7,9 @@
   "scripts": {
     "start": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "node --test ../tests/*.test.mjs"
+    "test": "node --test ../tests/*.test.mjs",
+    "load:mp-local": "node ../scripts/load-mp-local-secrets.mjs",
+    "smoke:mp-sandbox": "node ../scripts/mp-sandbox-smoke.mjs"
   },
   "keywords": ["mercadopago", "checkout-pro", "wedding", "cloudflare-worker"],
   "author": "HG Stack",

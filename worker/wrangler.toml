@@ -13,7 +13,9 @@ LIVE_MODE = "false"
 APP_URL = "https://hgreco85.github.io/mariana-hernan-preview/"
 
 # SENSITIVE SECRETS: Do NOT place secret values in this file!
-# Secrets are loaded via Cloudflare Secrets ('wrangler secret put <NAME>') or .dev.vars in local dev:
+# Production/staging secrets stay in Cloudflare (`wrangler secret put <NAME>`).
+# Local sandbox only: `node ../scripts/load-mp-local-secrets.mjs` writes gitignored
+# .dev.vars (MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET) for `wrangler dev`. Never commit it.
 # - SHARED_SECRET
 # - MP_ACCESS_TOKEN
 # - MP_WEBHOOK_SECRET

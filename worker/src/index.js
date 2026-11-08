@@ -21,6 +21,93 @@ function constantTimeEqual(a, b) {
   return c === 0;
 }
 
+// Checkout Pro preference used by the non-strict fallback and by the local sandbox smoke test.
+// sandboxOnly refuses live mode and non-TEST tokens before any network call, and omits
+// notification_url so a smoke preference is not subscribed to a deployed webhook.
+export async function createCheckoutPreference(env, order, deps = {}) {
+  const fetchImpl = deps.fetchImpl || fetch;
+  const token = env && env.MP_ACCESS_TOKEN;
+  const sandboxOnly = deps.sandboxOnly === true;
+
+  if (sandboxOnly) {
+    if (!env || env.LIVE_MODE === 'true') {
+      return { ok: false, status: 403, json: {}, text: '', checkoutUrl: null, preferenceId: null, reason: 'live_mode' };
+    }
+    const webhook = env.MP_WEBHOOK_SECRET;
+    if (!webhook || webhook === 'REPLACE_WITH_MP_WEBHOOK_SECRET') {
+      return { ok: false, status: 500, json: {}, text: '', checkoutUrl: null, preferenceId: null, reason: 'webhook_missing' };
+    }
+    if (typeof token !== 'string' || !token.startsWith('TEST-')) {
+      return { ok: false, status: 403, json: {}, text: '', checkoutUrl: null, preferenceId: null, reason: 'not_sandbox_token' };
+    }
+  }
+
+  if (!token || token === 'REPLACE_WITH_MP_ACCESS_TOKEN') {
+    return {
+      ok: false,
+      status: 503,
+      json: { message: 'MP_ACCESS_TOKEN not configured' },
+      text: '',
+      checkoutUrl: null,
+      preferenceId: null,
+      reason: 'token_missing'
+    };
+  }
+
+  const orderId = order.orderId;
+  const experienceId = order.experienceId;
+  const appReturnUrl = env.APP_URL || 'https://hgreco85.github.io/mariana-hernan-preview/';
+  const notificationUrl = !sandboxOnly && env.WORKER_WEBHOOK_URL
+    ? env.WORKER_WEBHOOK_URL.replace(/\/$/, '') + '/webhook/mp'
+    : undefined;
+
+  const prefPayload = {
+    items: [{
+      id: experienceId,
+      title: order.title || experienceId,
+      description: experienceId || '',
+      quantity: 1,
+      currency_id: 'ARS',
+      unit_price: Number(order.amount)
+    }],
+    external_reference: orderId,
+    back_urls: {
+      success: `${appReturnUrl}?mp_status=approved&order=${encodeURIComponent(orderId)}`,
+      pending: `${appReturnUrl}?mp_status=pending&order=${encodeURIComponent(orderId)}`,
+      failure: `${appReturnUrl}?mp_status=failure&order=${encodeURIComponent(orderId)}`
+    },
+    auto_return: 'approved'
+  };
+  if (notificationUrl) prefPayload.notification_url = notificationUrl;
+
+  const resp = await fetchImpl('https://api.mercadopago.com/checkout/preferences', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + token
+    },
+    body: JSON.stringify(prefPayload),
+    redirect: 'manual'
+  });
+  const text = await resp.text();
+  let json = {};
+  try { json = JSON.parse(text); } catch (e) {}
+  const checkoutUrl = (env.LIVE_MODE === 'true' && json.init_point)
+    ? json.init_point
+    : (json.sandbox_init_point || json.init_point || null);
+  const preferenceId = json.id === undefined || json.id === null ? null : String(json.id);
+  const ok = resp.status >= 200 && resp.status < 300 && Boolean(json.init_point || json.sandbox_init_point);
+  return {
+    ok,
+    status: resp.status,
+    json,
+    text,
+    checkoutUrl,
+    preferenceId,
+    reason: ok ? 'ok' : 'preference_failed'
+  };
+}
+
 // Public read-only GET (no secrets transmitted in URL query parameters)
 async function appsScriptGet(env, params) {
   const url = new URL(env.APPS_SCRIPT_URL);
@@ -164,46 +251,25 @@ export default {
         }), 502);
       }
 
-      // Explicit fallback to Preferences API only if configured in auto mode
+      // Explicit fallback to Preferences API only if configured outside strict orders mode
       if (ordersFailed) {
-        const prefPayload = {
-          items: [{
-            id: order.experienceId,
-            title: order.title || order.experienceId,
-            description: order.experienceId || '',
-            quantity: 1,
-            currency_id: 'ARS',
-            unit_price: Number(amount)
-          }],
-          external_reference: orderId,
-          back_urls: {
-            success: `${appReturnUrl}?mp_status=approved&order=${encodeURIComponent(orderId)}`,
-            pending: `${appReturnUrl}?mp_status=pending&order=${encodeURIComponent(orderId)}`,
-            failure: `${appReturnUrl}?mp_status=failure&order=${encodeURIComponent(orderId)}`
-          },
-          auto_return: 'approved'
-        };
-        if (notificationUrl) prefPayload.notification_url = notificationUrl;
-
-        resp = await fetch('https://api.mercadopago.com/checkout/preferences', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-          },
-          body: JSON.stringify(prefPayload)
+        const pref = await createCheckoutPreference(env, {
+          orderId,
+          experienceId: order.experienceId,
+          title: order.title || order.experienceId,
+          amount
         });
-        text = await resp.text();
-        try { json = JSON.parse(text); } catch (e) {}
+        text = pref.text;
+        json = pref.json;
+        resp = { status: pref.status };
         if (json.init_point || json.sandbox_init_point) {
-          const checkoutUrl = (env.LIVE_MODE === 'true' && json.init_point) ? json.init_point : (json.sandbox_init_point || json.init_point);
           await appsScriptPost(env, {
             type: 'mp_order_created',
             orderId,
             mpOrderId: json.id
           });
           return corsResponse(JSON.stringify({
-            checkoutUrl,
+            checkoutUrl: pref.checkoutUrl,
             mpOrderId: json.id,
             orderId,
             apiUsed: 'preferences',
