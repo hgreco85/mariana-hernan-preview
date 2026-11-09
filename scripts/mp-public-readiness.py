@@ -34,6 +34,13 @@ try:
 except Exception as e:
     out["site"]={"safe":False,"error":type(e).__name__}
 
+try:
+    status, mime, raw = fetch(BASE + "/api/catalog", 200000)
+    parsed=json.loads(raw)
+    out["catalog"]={"http":status,"json":True,"safe":status==200 and isinstance(parsed,(dict,list))}
+except Exception as e:
+    out["catalog"]={"safe":False,"error":type(e).__name__}
+
 Path("mp_public_readiness.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
 print(json.dumps(out,sort_keys=True))
 if not out["worker"]["safe"] or not out["site"]["safe"]: raise SystemExit(1)
