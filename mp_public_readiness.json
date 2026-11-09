@@ -1,5 +1,10 @@
 {
-  "checked_at": "2026-11-09T01:20:54.500963+00:00",
+  "catalog": {
+    "http": 200,
+    "json": true,
+    "safe": true
+  },
+  "checked_at": "2026-11-09T01:21:43.922070+00:00",
   "site": {
     "html": true,
     "http": 200,
