@@ -4,11 +4,15 @@
     "json": true,
     "safe": true
   },
-  "checked_at": "2026-11-09T01:21:43.922070+00:00",
+  "checked_at": "2026-11-09T01:22:25.096806+00:00",
   "site": {
     "html": true,
     "http": 200,
     "safe": true
+  },
+  "webhook": {
+    "configured_and_rejects_unsigned": false,
+    "unsigned_http": 500
   },
   "worker": {
     "apiMode": "orders",
