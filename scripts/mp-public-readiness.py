@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Public, unauthenticated readiness check. Never reads credentials or performs payments."""
+"""Public, unauthenticated readiness check. Never reads credentials or performs payments.
+Recheck after user-confirmed Cloudflare Worker redeployment on 2026-11-08.
+"""
 import json
 import urllib.request
 from datetime import datetime, timezone
