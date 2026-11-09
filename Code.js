@@ -195,6 +195,11 @@ function reserveExperience(experienceId){
     for(let i=1;i<data.length;i++){ if(String(data[i][0])===String(experienceId)){ idx=i; break; } }
     if(idx<0) throw new Error('Experiencia no encontrada');
     const row=data[idx];
+    // Fail closed even when a legacy reservation expired before the external-Order TTL guard was deployed.
+    // A still-unsettled MP Order must be reconciled with Mercado Pago before allowing a second checkout.
+    const priorOps=opsSheet().getDataRange().getValues();
+    const activeExternalOrder=priorOps.some(r=>String(r[1])===String(experienceId) && unsettledPaymentOrder(r));
+    if(activeExternalOrder) throw new Error('Existe una orden de Mercado Pago pendiente de conciliación para esta experiencia.');
     const status=String(row[12]||'Disponible');
     if(status!=='Disponible') throw new Error('Esta experiencia no está disponible.');
     const usd=Number(row[8])||0;
