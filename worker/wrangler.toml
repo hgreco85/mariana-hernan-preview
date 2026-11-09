@@ -10,7 +10,9 @@ MP_API_MODE = "orders"
 # Set to 'true' only when authorized for live payments; default 'false' (sandbox/staging)
 LIVE_MODE = "false"
 # Return URL after Mercado Pago checkout
-APP_URL = "https://hgreco85.github.io/mariana-hernan-preview/"
+APP_URL = "https://regalos.hgstack.com/"
+# Used as notification_url for payment Orders / Webhooks
+WORKER_WEBHOOK_URL = "https://mp-webhook.hgreco85.workers.dev"
 
 # SENSITIVE SECRETS: Do NOT place secret values in this file!
 # Production/staging secrets stay in Cloudflare (`wrangler secret put <NAME>`).
