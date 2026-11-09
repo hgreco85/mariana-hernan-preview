@@ -1,0 +1,21 @@
+name: Wedding MP unresolved-order reservation guard
+on:
+  pull_request:
+    paths:
+      - 'Code.js'
+      - 'tests/mp-unsettled-reservation-guard.test.mjs'
+      - '.github/workflows/mp-unsettled-reservation-guard.yml'
+permissions:
+  contents: read
+jobs:
+  reservation-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/mp-unsettled-reservation-guard.test.mjs
