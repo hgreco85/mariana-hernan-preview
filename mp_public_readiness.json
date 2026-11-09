@@ -4,7 +4,7 @@
     "json": true,
     "safe": true
   },
-  "checked_at": "2026-11-09T01:22:25.096806+00:00",
+  "checked_at": "2026-11-09T01:23:16.082069+00:00",
   "site": {
     "html": true,
     "http": 200,
@@ -12,6 +12,7 @@
   },
   "webhook": {
     "configured_and_rejects_unsigned": false,
+    "failure_class": "missing_webhook_secret",
     "unsigned_http": 500
   },
   "worker": {
