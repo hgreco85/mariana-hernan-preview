@@ -86,3 +86,25 @@ test('No wheel, paid-only-on-foot walking gifts, or duplicate schnitzel dinner',
   assert.match(catalog.find(x=>x.id==='V09-075').description.toLowerCase(), /tafelspitz/);
   assert.notEqual(catalog.find(x=>x.id==='V09-074').photo,catalog.find(x=>x.id==='V09-075').photo);
 });
+
+test('No repeated currency disclaimers and ARS is primary on gift cards', () => {
+  assert.ok(!indexHtml.includes("esc(i18n[lang].currencyNote)"), 'Currency disclaimer should not repeat in cards/modals');
+  assert.match(indexHtml, /ARS '\+format\(x\.ars/);
+  assert.match(indexHtml, /≈ USD /);
+  assert.match(indexHtml, /≈ R\$ /);
+});
+
+test('Distinct Praga dining gifts point to different named restaurants', () => {
+  const beer = catalog.find(x => x.id === 'V09-061');
+  const meal = catalog.find(x => x.id === 'V09-063');
+  assert.ok(beer && meal, 'Both Prague dining experiences should be visible');
+  assert.match(beer.place, /Lokál/);
+  assert.match(meal.place, /Mincovna/);
+  assert.notEqual(beer.place, meal.place);
+  assert.match(meal.descriptionPt, /Mincovna/);
+});
+
+test('High-value wedding gift options remain present', () => {
+  assert.ok(catalog.filter(x => x.usd >= 100).length >= 15);
+  assert.ok(catalog.some(x => x.usd >= 195));
+});
