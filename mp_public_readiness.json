@@ -1,0 +1,15 @@
+{
+  "checked_at": "2026-11-09T01:20:54.500963+00:00",
+  "site": {
+    "html": true,
+    "http": 200,
+    "safe": true
+  },
+  "worker": {
+    "apiMode": "orders",
+    "http": 200,
+    "mode": "staging_test",
+    "safe": true,
+    "status": "ok"
+  }
+}
