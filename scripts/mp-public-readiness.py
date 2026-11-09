@@ -41,6 +41,22 @@ try:
 except Exception as e:
     out["catalog"]={"safe":False,"error":type(e).__name__}
 
+try:
+    # Send a deliberately unsigned, empty webhook request: the handler must
+    # reject before processing any order or touching Mercado Pago/Sheets.
+    from urllib.error import HTTPError
+    req = urllib.request.Request(BASE + "/webhook/mp", data=b"{}", headers={
+        **HEADERS, "Content-Type": "application/json"
+    }, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=16) as resp:
+            code=resp.status
+    except HTTPError as exc:
+        code=exc.code
+    out["webhook"]={"unsigned_http":code,"configured_and_rejects_unsigned":code==401}
+except Exception as e:
+    out["webhook"]={"configured_and_rejects_unsigned":False,"error":type(e).__name__}
+
 Path("mp_public_readiness.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
 print(json.dumps(out,sort_keys=True))
-if not out["worker"]["safe"] or not out["site"]["safe"]: raise SystemExit(1)
+if not out["worker"]["safe"] or not out["site"]["safe"] or not out["webhook"]["configured_and_rejects_unsigned"]: raise SystemExit(1)
