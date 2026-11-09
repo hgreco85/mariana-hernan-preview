@@ -1,0 +1,21 @@
+name: Wedding prevent duplicate checkout for stale external Orders
+on:
+  pull_request:
+    paths:
+      - 'Code.js'
+      - 'tests/mp-stale-order-before-reserve.test.mjs'
+      - '.github/workflows/mp-stale-order-before-reserve.yml'
+permissions:
+  contents: read
+jobs:
+  reserve-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/mp-stale-order-before-reserve.test.mjs tests/mp-unsettled-reservation-guard.test.mjs
