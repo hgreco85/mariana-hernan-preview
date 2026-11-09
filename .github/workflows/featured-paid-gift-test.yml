@@ -5,6 +5,7 @@ on:
       - 'Code.js'
       - 'preview.html'
       - 'tests/featured-paid-gift.test.mjs'
+      - 'tests/wedding-payment-transition.test.mjs'
       - '.github/workflows/featured-paid-gift-test.yml'
 permissions:
   contents: read
@@ -19,4 +20,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test tests/featured-paid-gift.test.mjs
+      - run: node --test tests/featured-paid-gift.test.mjs tests/wedding-payment-transition.test.mjs
