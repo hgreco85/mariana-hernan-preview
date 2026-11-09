@@ -48,12 +48,14 @@ try:
     req = urllib.request.Request(BASE + "/webhook/mp", data=b"{}", headers={
         **HEADERS, "Content-Type": "application/json"
     }, method="POST")
+    response_class="unexpected_success"
     try:
         with urllib.request.urlopen(req, timeout=16) as resp:
             code=resp.status
     except HTTPError as exc:
         code=exc.code
-    out["webhook"]={"unsigned_http":code,"configured_and_rejects_unsigned":code==401}
+        response_class = "missing_webhook_secret" if b"Webhook endpoint unconfigured" in exc.read(1500) else "other_rejection"
+    out["webhook"]={"unsigned_http":code,"configured_and_rejects_unsigned":code==401,"failure_class":response_class if code!=401 else "expected_unsigned_rejection"}
 except Exception as e:
     out["webhook"]={"configured_and_rejects_unsigned":False,"error":type(e).__name__}
 
