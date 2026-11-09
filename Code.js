@@ -144,6 +144,19 @@ function ensureCatalogColumns(sh){ if(sh.getLastColumn()<20){ sh.getRange(1,20).
 
 function getFxRate(key, fallback){ const p=PropertiesService.getScriptProperties().getProperty(key); const n=Number(p); return (isNaN(n)||n<=0)?fallback:n; }
 
+// Do not free an experience while a Mercado Pago Order can still settle.
+// An internal reservation may have a MP Order ID before the first webhook.
+// Only a separately reconciled terminal outcome can allow release.
+function unsettledPaymentOrder(row){
+  const state=String(row[2]||'').trim().toLowerCase();
+  const mpOrderId=String(row[6]||'').trim();
+  if(state==='aprobado'||state==='regalada y cobrada') return true;
+  if(state.includes('pendiente')||state.includes('pending')||state.includes('in_process')||state.includes('authorized')) return true;
+  if(!mpOrderId) return false; // Unpaid internal reservation: normal TTL applies.
+  // Fail closed for all nonterminal external Orders, including 'Reservada'.
+  return !['rechazado','rejected','cancelado','cancelled','reembolsado','refunded',
+    'contracargo','charged_back','expirada (no abonada)'].includes(state);
+}
 function releaseExpiredReservations(){ const lock=LockService.getScriptLock(); lock.waitLock(20000); try{ releaseExpiredReservationsLocked(); } finally{ lock.releaseLock(); } }
 function releaseExpiredReservationsLocked(){
   const sh=catalogSheet(); const data=sh.getDataRange().getValues(); if(data.length<2) return;
@@ -154,7 +167,7 @@ function releaseExpiredReservationsLocked(){
     const expiry=data[i][19]; let expDate=expiry?new Date(expiry):null;
     if(expDate && expDate>now) continue;
     const expId=String(data[i][0]);
-    const hasPending=opData.some(r=>String(r[1])===expId && (String(r[2]).toLowerCase().includes('pendiente')||String(r[2]).toLowerCase().includes('pending')));
+    const hasPending=opData.some(r=>String(r[1])===expId && unsettledPaymentOrder(r));
     if(hasPending) continue;
     sh.getRange(i+1,13).setValue('Disponible'); sh.getRange(i+1,20).clearContent();
   }
