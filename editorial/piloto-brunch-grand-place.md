@@ -16,8 +16,12 @@
 - **Estado del regalo inicial:** Disponible, **nunca Regalada/Cobrada antes de la confirmación real**.
 - **Posición deseada:** tercera o cuarta tarjeta del catálogo visible (el orden es presentación, no nuevo precio para otra experiencia).
 - **Lugar de referencia:** entorno de Grand-Place, Bruselas (cafetería concreta no seleccionada).
-- **Foto provisional:** URL referencial heredada de V09-052, pendiente de verificar licencia y adecuación antes de publicación; no presentar como fotografía del proveedor.
-- **Origen editorial:** V09-052, archivada, con precio anterior ARS 78.000. **Conservar V09-052 archivada sin tocar**.
+- **Foto provisional heredada (descartada):** URL referencial de V09-052 (`photo-1570905668667-03183c134d04`) fue auditada visualmente y descartada al comprobar que muestra una embarcación en canales holandeses (Ámsterdam) y no Bruselas ni un café.
+- **Foto definitiva validada:** `File:2005-09-05 La Brouette Grand-Place Brussels.jpg` en Wikimedia Commons.
+  - **URL:** `https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/2005-09-05_La_Brouette_Grand-Place_Brussels.jpg/960px-2005-09-05_La_Brouette_Grand-Place_Brussels.jpg`
+  - **Contenido:** Terraza exterior de café con mesas, sombrillas y camarero sobre los adoquines de la histórica Grand-Place de Bruselas frente a las casas gremiales.
+  - **Licencia y procedencia:** Creative Commons Attribution-Share Alike 2.5 (CC BY-SA 2.5), verificada vía API de Wikimedia Commons (HTTP 200, imagen JPEG 960px, uso comercial y no comercial permitido con atribución).
+- **Posicionamiento en catálogo:** 4ª tarjeta del recorrido (`preview.html`), ubicada inmediatamente tras `V09-001`, `V09-003` y `V09-004`, manteniendo sin alterar el orden relativo y contenido de las 62 experiencias activas originales y las 18 archivadas.
 
 ## Invariantes
 1. Mantener idénticas las 62 experiencias publicadas existentes (IDs, títulos, precios, imágenes, estados).
