@@ -28,7 +28,7 @@ WORKER_WEBHOOK_URL = "https://mp-webhook.hgreco85.workers.dev"
 [env.production]
 name = "mp-webhook-production"
 [env.production.vars]
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx5YvudciPjG0OUmqSjOocMHxLMFZy2MTN9V3VrBb5FQP_VK1B7O3T3z8aiZP574K1E/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyRqR87jjH05vaDS_5UL8G9CkFfChGE2P8FqhwvFn2HVyjqdTdbl0T1Ts41sfnILHv1/exec"
 MP_API_MODE = "orders"
 # LIVE_MODE enabled under explicit human authorization for GRECOHERNAN (84725274)
 LIVE_MODE = "true"

@@ -78,9 +78,11 @@ document.getElementById('dialogContent').innerHTML=content;
 document.getElementById('overlay').classList.add('open');
 }
 function clearFilters(){document.getElementById('city').value='';document.getElementById('type').value='';document.getElementById('price').value='';render()}
-function hideGift(){document.getElementById('overlay').classList.remove('open')}
+function hideGift(){document.getElementById('overlay').classList.remove('open');if(window.location.hash)history.replaceState(null,null,window.location.pathname+window.location.search)}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')hideGift()});
-function start(rows){gifts=rows.filter(x=>x.id&&!x.archived).sort((a,b)=>cityOrder.indexOf(a.city)-cityOrder.indexOf(b.city));gifts.forEach(x=>{let d=defaults[x.id];if(d){x.titlePt=x.titlePt||d[0];x.descriptionPt=x.descriptionPt||d[1];x.photo=x.photo||d[2];}x.ars=Number(x.ars)||Math.round(x.usd*FX_ARS);x.brl=Number(x.brl)||Math.round(x.usd*FX_BRL);});fillFilters();fillSort();render();handleReturn();}
+function handleHash(){const h=window.location.hash.replace(/^#/,'');if(h){const g=gifts.find(z=>z.id===h);if(g){showGift(h);const el=document.querySelector('[data-gift="'+h+'"]');if(el)el.scrollIntoView({behavior:'smooth',block:'center'});}}}
+window.addEventListener('hashchange',handleHash);
+function start(rows){gifts=rows.filter(x=>x.id&&!x.archived).sort((a,b)=>cityOrder.indexOf(a.city)-cityOrder.indexOf(b.city));gifts.forEach(x=>{let d=defaults[x.id];if(d){x.titlePt=x.titlePt||d[0];x.descriptionPt=x.descriptionPt||d[1];x.photo=x.photo||d[2];}x.ars=Number(x.ars)||Math.round(x.usd*FX_ARS);x.brl=Number(x.brl)||Math.round(x.usd*FX_BRL);});fillFilters();fillSort();render();handleReturn();handleHash();}
 document.getElementById("cards").addEventListener("click",e=>{const card=e.target.closest("[data-gift]");if(card)showGift(card.dataset.gift)});
 document.getElementById("cards").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.closest("[data-gift]")){e.preventDefault();showGift(e.target.closest("[data-gift]").dataset.gift)}});
 
