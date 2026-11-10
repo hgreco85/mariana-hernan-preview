@@ -4,7 +4,7 @@ let gifts=[],lang='es',sortMode='trip';
 const cityOrder=['Roma','Múnich','Estrasburgo','París','Bruselas','Praga','Viena'];
 const CAT_PHOTO={'Gastronomía':'photo-1509042239860-f550ce710b93','Cultura':'photo-1511739001486-6bfe10ce785f','Experiencias':'photo-1502602898657-3e91760cbb34','Transporte':'photo-1474487548417-781cb71495f3'};
 const FX_ARS=1560, FX_BRL=5.5003;
-const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycbx5YvudciPjG0OUmqSjOocMHxLMFZy2MTN9V3VrBb5FQP_VK1B7O3T3z8aiZP574K1E/exec';
+const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycbyRqR87jjH05vaDS_5UL8G9CkFfChGE2P8FqhwvFn2HVyjqdTdbl0T1Ts41sfnILHv1/exec';
 const WORKER_URL=window.WORKER_URL_OVERRIDE || 'https://mp-webhook-production.hgreco85.workers.dev';
 
 const api = {
@@ -39,7 +39,7 @@ const api = {
     }
   }
 };
-const i18n={es:{hero:'Nuestro viaje empieza con ustedes.',intro:'Elegimos celebrar este nuevo capítulo de nuestra vida creando recuerdos que duren para siempre.',support:'Nos emociona saber que cada experiencia puede llevar un pedacito de ustedes.',thanks:'Gracias por acompañarnos y ser parte de esta aventura.',journey:'Nuestro viaje comienza acá',desc:'De Roma a Múnich, Estrasburgo, París, Bruselas, Praga y Viena, y de regreso a Roma. Un mapa de lugares por descubrir y recuerdos por construir.',all:'Todos los destinos',types:'Todas las experiencias',allprices:'Todos los precios',note:'El precio principal es en pesos argentinos (ARS), importe definitivo. USD y BRL son referencias orientativas. El banco emisor puede aplicar su propia conversión y cargos.',detail:'Ver experiencia',coming:'Regalos disponibles próximamente',count:'experiencias para explorar',map:'Ubicación en Google Maps',sortBy:'Ordenar por',sTrip:'Recorrido',sPriceAsc:'Precio: menor a mayor',sPriceDesc:'Precio: mayor a menor',sNameAsc:'Nombre: A → Z',sNameDesc:'Nombre: Z → A',sCity:'Destino: A → Z',sType:'Experiencia: A → Z',clear:'Limpiar filtros',empty:'No hay experiencias con estos filtros. Probá cambiar los filtros o limpiarlos.',chosen:'Este recuerdo ya tiene quien lo haga posible. ❤️',chosenSub:'Gracias a alguien que nos quiere, esta experiencia ya forma parte de nuestra aventura.',pending:'Pago pendiente de confirmación. Estamos esperando la acreditación.',reserved:'Reservada temporalmente durante el checkout.',giftBtn:'Regalar esta experiencia',thankTitle:'¡Gracias por acompañarnos en esta aventura! ❤️',thankText:'Tu regalo nos acerca a vivir un recuerdo hermoso juntos. Nos hace mucha ilusión compartir este viaje con ustedes.',backBtn:'Volver a las experiencias',payPending:'Tu pago está pendiente de acreditación. Te avisaremos cuando se confirme.',payFail:'El pago no se completó. Podés intentarlo nuevamente de forma segura.',dedTitle:'Dejá una dedicatoria (opcional)',dedPlaceholder:'Escribí un mensaje para los novios...',dedName:'Tu nombre (opcional)',dedSend:'Enviar dedicatoria',dedThanks:'¡Gracias por tu dedicatoria!',confirming:'Confirmando pago con el servidor...',illus:'Foto ilustrativa',currencyNote:'Importe definitivo en ARS. Referencias USD/BRL orientativas.'},pt:{hero:'Nossa viagem começa com vocês.',intro:'Escolhemos celebrar este novo capítulo da nossa vida criando lembranças que durem para sempre.',support:'Nos emociona saber que cada experiência pode levar um pedacinho de vocês.',thanks:'Obrigado por nos acompanharem e fazerem parte desta aventura.',journey:'Nossa viagem começa aqui',desc:'De Roma a Munique, Estrasburgo, Paris, Bruxelas, Praga e Viena, e de volta a Roma. Um mapa de lugares para descobrir e memórias para construir.',all:'Todos os destinos',types:'Todas as experiências',allprices:'Todos os valores',note:'O preço principal é em pesos argentinos (ARS), valor definitivo. USD e BRL são apenas referências aproximadas. O banco emissor pode aplicar sua própria conversão e taxas.',detail:'Ver experiência',coming:'Presentes disponíveis em breve',count:'experiências para explorar',map:'Localização no Google Maps',sortBy:'Ordenar por',sTrip:'Roteiro',sPriceAsc:'Preço: menor para maior',sPriceDesc:'Preço: maior para menor',sNameAsc:'Nome: A → Z',sNameDesc:'Nome: Z → A',sCity:'Destino: A → Z',sType:'Experiência: A → Z',clear:'Limpar filtros',empty:'Não há experiências com esses filtros. Tente mudar os filtros ou limpá-los.',chosen:'Essa lembrança já tem quem a torne possível. ❤️',chosenSub:'Graças a alguém que nos quer bem, essa experiência já faz parte da nossa aventura.',pending:'Pagamento pendente de confirmação. Estamos aguardando a acreditação.',reserved:'Reservada temporariamente durante o checkout.',giftBtn:'Presentear esta experiência',thankTitle:'Obrigado por nos acompanhar nessa aventura! ❤️',thankText:'Seu presente nos aproxima de viver uma recordação linda juntos. Ficamos muito felizes em compartilhar essa viagem com vocês.',backBtn:'Voltar às experiências',payPending:'Seu pagamento está pendente de acreditação. Avisaremos quando for confirmado.',payFail:'O pagamento não foi concluído. Você pode tentar novamente com segurança.',dedTitle:'Deixe uma dedicatória (opcional)',dedPlaceholder:'Escreva uma mensagem para os noivos...',dedName:'Seu nome (opcional)',dedSend:'Enviar dedicatória',dedThanks:'Obrigado pela dedicatória!',confirming:'Confirmando pagamento com o servidor...',illus:'Foto ilustrativa',currencyNote:'Valor definitivo em ARS. Referências USD/BRL aproximadas.'}};
+const i18n={es:{hero:'Nuestro viaje empieza con ustedes.',intro:'Elegimos celebrar este nuevo capítulo de nuestra vida creando recuerdos que duren para siempre.',support:'Nos emociona saber que cada experiencia puede llevar un pedacito de ustedes.',thanks:'Gracias por acompañarnos y ser parte de esta aventura.',journey:'Nuestro viaje comienza acá',desc:'De Roma a Múnich, Estrasburgo, París, Bruselas, Praga y Viena, y de regreso a Roma. Un mapa de lugares por descubrir y recuerdos por construir.',all:'Todos los destinos',types:'Todas las experiencias',allprices:'Todos los precios',note:'El precio principal es en pesos argentinos (ARS), importe definitivo. USD y BRL son referencias orientativas. El banco emisor puede aplicar su propia conversión y cargos.',detail:'Ver experiencia',coming:'Regalos disponibles próximamente',count:'experiencias para explorar',map:'Ubicación en Google Maps',sortBy:'Ordenar por',sTrip:'Recorrido',sPriceAsc:'Precio: menor a mayor',sPriceDesc:'Precio: mayor a menor',sNameAsc:'Nombre: A → Z',sNameDesc:'Nombre: Z → A',sCity:'Destino: A → Z',sType:'Experiencia: A → Z',clear:'Limpiar filtros',empty:'No hay experiencias con estos filtros. Probá cambiar los filtros o limpiarlos.',chosen:'Este recuerdo ya tiene quien lo haga posible. ❤️',chosenSub:'Gracias a alguien que nos quiere, esta experiencia ya forma parte de nuestra aventura.',pending:'Pago pendiente de confirmación. Estamos esperando la acreditación.',reserved:'Reservada temporalmente durante el checkout.',giftBtn:'Regalar esta experiencia',thankTitle:'¡Gracias por acompañarnos en esta aventura! ❤️',thankText:'Tu regalo nos acerca a vivir un recuerdo hermoso juntos. Nos hace mucha ilusión compartir este viaje con ustedes.',backBtn:'Volver a las experiencias',payPending:'Tu pago está pendiente de acreditación. Te avisaremos cuando se confirme.',payFail:'El pago no se completó. Podés intentarlo nuevamente de forma segura.',dedTitle:'Dejá una dedicatoria (opcional)',dedPlaceholder:'Escribí un mensaje para los novios...',dedName:'Tu nombre (opcional)',dedSend:'Enviar dedicatoria',dedThanks:'¡Gracias por tu dedicatoria!',confirming:'Estamos verificando tu pago…',step1:'Estamos preparando tu regalo…',step2:'Conectando con Mercado Pago…',step3:'Te estamos llevando al pago seguro…',step4:'Estamos verificando tu pago…',step5:'¡Gracias! Tu regalo fue confirmado',ttlNotice:'Tenés 15 minutos para completar tu pago de forma segura.',illus:'Foto ilustrativa',currencyNote:'Importe definitivo en ARS. Referencias USD/BRL orientativas.'},pt:{hero:'Nossa viagem começa com vocês.',intro:'Escolhemos celebrar este novo capítulo da nossa vida criando lembranças que durem para sempre.',support:'Nos emociona saber que cada experiência pode levar um pedacinho de vocês.',thanks:'Obrigado por nos acompanharem e fazerem parte desta aventura.',journey:'Nossa viagem começa aqui',desc:'De Roma a Munique, Estrasburgo, Paris, Bruxelas, Praga e Viena, e de volta a Roma. Um mapa de lugares para descobrir e memórias para construir.',all:'Todos os destinos',types:'Todas as experiências',allprices:'Todos os valores',note:'O preço principal é em pesos argentinos (ARS), valor definitivo. USD e BRL são apenas referências aproximadas. O banco emissor pode aplicar sua própria conversão e taxas.',detail:'Ver experiência',coming:'Presentes disponíveis em breve',count:'experiências para explorar',map:'Localização no Google Maps',sortBy:'Ordenar por',sTrip:'Roteiro',sPriceAsc:'Preço: menor para maior',sPriceDesc:'Preço: maior para menor',sNameAsc:'Nome: A → Z',sNameDesc:'Nome: Z → A',sCity:'Destino: A → Z',sType:'Experiência: A → Z',clear:'Limpar filtros',empty:'Não há experiências com esses filtros. Tente mudar os filtros ou limpá-los.',chosen:'Essa lembrança já tem quem a torne possível. ❤️',chosenSub:'Graças a alguém que nos quer bem, essa experiência já faz parte da nossa aventura.',pending:'Pagamento pendente de confirmação. Estamos aguardando a acreditação.',reserved:'Reservada temporariamente durante o checkout.',giftBtn:'Presentear esta experiência',thankTitle:'Obrigado por nos acompanhar nessa aventura! ❤️',thankText:'Seu presente nos aproxima de viver uma recordação linda juntos. Ficamos muito felizes em compartilhar essa viagem com vocês.',backBtn:'Voltar às experiências',payPending:'Seu pagamento está pendente de acreditação. Avisaremos quando for confirmado.',payFail:'O pagamento não foi concluído. Você pode tentar novamente com segurança.',dedTitle:'Deixe uma dedicatória (opcional)',dedPlaceholder:'Escreva uma mensagem para os noivos...',dedName:'Seu nome (opcional)',dedSend:'Enviar dedicatória',dedThanks:'Obrigado pela dedicatória!',confirming:'Estamos verificando o seu pagamento…',step1:'Estamos preparando o seu presente…',step2:'Conectando com o Mercado Pago…',step3:'Levando você para o pagamento seguro…',step4:'Estamos verificando o seu pagamento…',step5:'Obrigado! Seu presente foi confirmado',ttlNotice:'Você tem 15 minutos para concluir seu pagamento com segurança.',illus:'Foto ilustrativa',currencyNote:'Valor definitivo em ARS. Referências USD/BRL aproximadas.'}};
 const ptCity={'Múnich':'Munique','París':'Paris','Bruselas':'Bruxelas','Viena':'Viena','Roma':'Roma','Praga':'Praga','Estrasburgo':'Estrasburgo'};
 function format(n,locale){return Number(n||0).toLocaleString(locale)}
 function esc(s){return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
@@ -71,7 +71,7 @@ if(gifted){
 } else if(pending){
   content+='<p style="color:#a06c22;font-weight:bold">'+esc(i18n[lang].pending)+'</p>';
 } else {
-  content+='<h2>ARS '+format(x.ars,'es-AR')+'</h2><p>≈ USD '+format(x.usd,'es-AR')+' · ≈ R$ '+format(x.brl,'pt-BR')+'</p><p><a href="'+esc(safeUrl(x.maps))+'" target="_blank" rel="noopener">'+i18n[lang].map+'</a></p><button class="cta" id="giftBtn" onclick="giftExperience(\''+esc(x.id)+'\')">'+i18n[lang].giftBtn+'</button>';
+  content+='<h2>ARS '+format(x.ars,'es-AR')+'</h2><p>≈ USD '+format(x.usd,'es-AR')+' · ≈ R$ '+format(x.brl,'pt-BR')+'</p><p><a href="'+esc(safeUrl(x.maps))+'" target="_blank" rel="noopener">'+i18n[lang].map+'</a></p><button class="cta" id="giftBtn" style="width:100%;max-width:340px;font-weight:bold" onclick="giftExperience(\''+esc(x.id)+'\')">'+i18n[lang].giftBtn+'</button><p id="checkoutNotice" style="color:#5a6876;font-size:13px;margin:10px 0 0;display:none"></p>';
 }
 content+='</div>';
 document.getElementById('dialogContent').innerHTML=content;
@@ -86,41 +86,119 @@ function start(rows){gifts=rows.filter(x=>x.id&&!x.archived).sort((a,b)=>cityOrd
 document.getElementById("cards").addEventListener("click",e=>{const card=e.target.closest("[data-gift]");if(card)showGift(card.dataset.gift)});
 document.getElementById("cards").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.closest("[data-gift]")){e.preventDefault();showGift(e.target.closest("[data-gift]").dataset.gift)}});
 
+let isCheckingOut=false;
 function giftExperience(id){
+  if(isCheckingOut) return;
   const btn=document.getElementById('giftBtn');
-  if(btn){btn.disabled=true;btn.textContent=i18n[lang].confirming;}
-  api.reserveExperience(id, function(res){
-    if(res && res.orderId){
-      fetch(WORKER_URL+'/api/create-order', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({orderId:res.orderId})
-      })
-      .then(r=>r.json())
-      .then(wr=>{
-        if(wr && wr.checkoutUrl){
-          try{sessionStorage.setItem('lastOrder',res.orderId);}catch(e){}
-          window.location.href=wr.checkoutUrl;
-        } else {
-          const msg = wr && wr.needsHumanAction
-            ? '¡Reserva confirmada! (Orden: ' + res.orderId + ')\n\nModo Staging/Sandbox: Infraestructura y exclusividad verificadas. Para iniciar checkout se requiere MP_ACCESS_TOKEN.'
-            : (wr && wr.error ? wr.error : 'Reserva creada: ' + res.orderId);
-          alert(msg);
-          if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;}
-        }
-      })
-      .catch(err=>{
-        alert('Reserva creada exitosamente: ' + res.orderId + ' (Modo Staging)');
-        if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;}
-      });
-    } else {
-      alert(res && res.error ? res.error : 'No se pudo reservar la experiencia.');
-      if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;}
-    }
-  }, function(err){
-    alert(err && err.message ? err.message : 'Esta experiencia no está disponible.');
+  const notice=document.getElementById('checkoutNotice');
+  isCheckingOut=true;
+  if(btn){btn.disabled=true;btn.textContent=i18n[lang].step1;}
+  if(notice){notice.style.display='block';notice.textContent=i18n[lang].ttlNotice;}
+
+  const t0=Date.now();
+  window.__checkoutMetrics={experienceId:id,startedAt:t0,reserveMs:0,createOrderMs:0,totalMs:0};
+  let timedOut=false;
+  const timer=setTimeout(function(){
+    timedOut=true;
+    isCheckingOut=false;
     if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;}
-  });
+    if(notice) notice.style.display='none';
+    alert(lang==='pt' ? 'O servidor demorou para responder. Por favor, tente novamente.' : 'El servidor tardó en responder. Por favor, intentá nuevamente.');
+  }, 15000);
+
+  function proceedToCreateOrder(orderId, isRetry){
+    if(timedOut) return;
+    const t1=Date.now();
+    if(btn) btn.textContent=i18n[lang].step2;
+    fetch(WORKER_URL+'/api/create-order', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({orderId:orderId})
+    })
+    .then(r=>r.json())
+    .then(wr=>{
+      if(timedOut) return;
+      const t2=Date.now();
+      window.__checkoutMetrics.createOrderMs=t2-t1;
+      window.__checkoutMetrics.totalMs=t2-t0;
+      if(wr && wr.checkoutUrl){
+        clearTimeout(timer);
+        if(btn) btn.textContent=i18n[lang].step3;
+        try{
+          sessionStorage.setItem('lastOrder',orderId);
+          sessionStorage.setItem('pendingOrder_'+id, JSON.stringify({orderId:orderId,ts:Date.now()}));
+        }catch(e){}
+        setTimeout(function(){
+          window.location.href=wr.checkoutUrl;
+        }, 300);
+      } else if(isRetry){
+        try{sessionStorage.removeItem('pendingOrder_'+id);}catch(e){}
+        doFreshReserve();
+      } else {
+        isCheckingOut=false;
+        clearTimeout(timer);
+        try{sessionStorage.removeItem('pendingOrder_'+id);}catch(e){}
+        const msg = wr && wr.needsHumanAction
+          ? '¡Reserva confirmada! (Orden: ' + orderId + ')\n\nModo Staging/Sandbox: Infraestructura y exclusividad verificadas. Para iniciar checkout se requiere MP_ACCESS_TOKEN.'
+          : (wr && wr.error ? wr.error : 'Reserva creada: ' + orderId);
+        alert(msg);
+        if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;}
+        if(notice) notice.style.display='none';
+      }
+    })
+    .catch(err=>{
+      if(timedOut) return;
+      isCheckingOut=false;
+      clearTimeout(timer);
+      alert(lang==='pt' ? 'Erro ao conectar com o Mercado Pago. Você pode tentar novamente sem duplicar a reserva.' : 'Error al conectar con Mercado Pago. Podés intentarlo nuevamente sin duplicar tu reserva.');
+      if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;}
+      if(notice) notice.style.display='none';
+    });
+  }
+
+  function doFreshReserve(){
+    const tr0=Date.now();
+    api.reserveExperience(id, function(res){
+      if(timedOut) return;
+      window.__checkoutMetrics.reserveMs=Date.now()-tr0;
+      if(res && res.orderId){
+        try{sessionStorage.setItem('pendingOrder_'+id, JSON.stringify({orderId:res.orderId,ts:Date.now()}));}catch(e){}
+        proceedToCreateOrder(res.orderId, false);
+      } else {
+        isCheckingOut=false;
+        clearTimeout(timer);
+        alert(res && res.error ? res.error : (lang==='pt' ? 'Não foi possível reservar a experiência.' : 'No se pudo reservar la experiencia.'));
+        if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;}
+        if(notice) notice.style.display='none';
+      }
+    }, function(err){
+      if(timedOut) return;
+      isCheckingOut=false;
+      clearTimeout(timer);
+      alert(err && err.message ? err.message : (lang==='pt' ? 'Esta experiência não está disponível.' : 'Esta experiencia no está disponible.'));
+      if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;}
+      if(notice) notice.style.display='none';
+    });
+  }
+
+  let cached=null;
+  try{
+    const raw=sessionStorage.getItem('pendingOrder_'+id);
+    if(raw){
+      const parsed=JSON.parse(raw);
+      if(parsed && parsed.orderId && (Date.now()-parsed.ts < 10*60*1000)){
+        cached=parsed.orderId;
+      } else {
+        sessionStorage.removeItem('pendingOrder_'+id);
+      }
+    }
+  }catch(e){}
+
+  if(cached){
+    proceedToCreateOrder(cached, true);
+  } else {
+    doFreshReserve();
+  }
 }
 
 function handleReturn(){
@@ -142,35 +220,61 @@ function showPayOverlay(status, order){
     overlay.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#142235cb;padding:20px;z-index:20';
     document.body.appendChild(overlay);
   }
-  overlay.innerHTML='<div style="background:#fff;border-radius:20px;max-width:620px;width:100%;padding:28px;text-align:center"><h2 style="font:normal 30px Georgia,serif;margin:0 0 12px">'+esc(i18n[lang].thankTitle)+'</h2><p id="payStatus">'+esc(i18n[lang].confirming)+'</p><div id="dedBox" style="display:none;margin-top:18px;text-align:left"><h3>'+esc(i18n[lang].dedTitle)+'</h3><input id="dedName" placeholder="'+esc(i18n[lang].dedName)+'" style="width:100%;padding:10px;margin:6px 0;border:1px solid #d8d5cf;border-radius:9px"><textarea id="dedText" placeholder="'+esc(i18n[lang].dedPlaceholder)+'" style="width:100%;padding:10px;margin:6px 0;border:1px solid #d8d5cf;border-radius:9px;min-height:90px"></textarea><button class="cta" onclick="submitDedication(\''+esc(order||'')+'\')">'+esc(i18n[lang].dedSend)+'</button><p id="dedMsg" style="color:#1b405e;margin-top:8px"></p></div><button class="cta" style="margin-top:18px" onclick="closePayOverlay()">'+esc(i18n[lang].backBtn)+'</button></div>';
+  overlay.innerHTML='<div style="background:#fff;border-radius:20px;max-width:620px;width:100%;padding:28px;text-align:center"><h2 id="payTitle" style="font:normal 28px Georgia,serif;margin:0 0 12px;color:#112c4e">'+esc(i18n[lang].step4)+'</h2><p id="payStatus" style="color:#4a5d6d;line-height:1.6">'+esc(i18n[lang].confirming)+'</p><div id="dedBox" style="display:none;margin-top:18px;text-align:left"><h3>'+esc(i18n[lang].dedTitle)+'</h3><input id="dedName" placeholder="'+esc(i18n[lang].dedName)+'" style="width:100%;padding:10px;margin:6px 0;border:1px solid #d8d5cf;border-radius:9px"><textarea id="dedText" placeholder="'+esc(i18n[lang].dedPlaceholder)+'" style="width:100%;padding:10px;margin:6px 0;border:1px solid #d8d5cf;border-radius:9px;min-height:90px"></textarea><button class="cta" onclick="submitDedication(\''+esc(order||'')+'\')">'+esc(i18n[lang].dedSend)+'</button><p id="dedMsg" style="color:#1b405e;margin-top:8px"></p></div><button class="cta" style="margin-top:18px" onclick="closePayOverlay()">'+esc(i18n[lang].backBtn)+'</button></div>';
   overlay.style.display='flex';
-  if(!order){ document.getElementById('payStatus').textContent=''; return; }
-  /*PREVIEW*/ (function(){return {withSuccessHandler(){return this},withFailureHandler(){return this},reserveExperience(){alert('Modo vista previa: pago deshabilitado');return this},getOrderStatus(){return this},saveDedication(){return this}}})().withSuccessHandler(function(res){
-    const st=(res && res.status)?res.status:'';
-    const low=st.toLowerCase();
-    let msg='';
-    if(low.includes('aprob')||low.includes('approved')){
-      msg=i18n[lang].thankText;
-      const ded=document.getElementById('dedBox'); if(ded) ded.style.display='block';
-    } else if(low.includes('pend')) {
-      msg=i18n[lang].payPending;
-    } else if(low.includes('rechaz')||low.includes('cancel')||low.includes('rejected')) {
-      msg=i18n[lang].payFail;
-    } else {
-      msg=i18n[lang].confirming;
-      // retry once after 3s
-      setTimeout(function(){ /*PREVIEW*/ (function(){return {withSuccessHandler(){return this},withFailureHandler(){return this},reserveExperience(){alert('Modo vista previa: pago deshabilitado');return this},getOrderStatus(){return this},saveDedication(){return this}}})().withSuccessHandler(function(r2){
-        const s2=(r2&&r2.status)?r2.status:'';
-        const el=document.getElementById('payStatus');
-        if(el) el.textContent = (s2.toLowerCase().includes('aprob')?i18n[lang].thankText:(s2.toLowerCase().includes('pend')?i18n[lang].payPending:i18n[lang].payFail));
-        if(s2.toLowerCase().includes('aprob')){const d=document.getElementById('dedBox'); if(d) d.style.display='block';}
-      }).getOrderStatus(order); }, 3000);
-    }
-    const el=document.getElementById('payStatus'); if(el) el.textContent=msg;
-    if(low.includes('aprob')){const d=document.getElementById('dedBox'); if(d) d.style.display='block';}
-  }).withFailureHandler(function(e){
-    const el=document.getElementById('payStatus'); if(el) el.textContent=i18n[lang].payFail;
-  }).getOrderStatus(order);
+  if(!order){
+    const tEl=document.getElementById('payTitle');
+    const sEl=document.getElementById('payStatus');
+    if(tEl) tEl.textContent=i18n[lang].payFail;
+    if(sEl) sEl.textContent='';
+    return;
+  }
+  let attempts=0;
+  function pollOrder(){
+    attempts++;
+    api.getOrderStatus(order, function(res){
+      const st=(res && res.status)?String(res.status):'';
+      const low=st.toLowerCase();
+      const tEl=document.getElementById('payTitle');
+      const sEl=document.getElementById('payStatus');
+      const ded=document.getElementById('dedBox');
+      if(low.includes('aprob')||low.includes('approved')||low.includes('cobrad')){
+        if(tEl) tEl.textContent=i18n[lang].step5+' ❤️';
+        if(sEl) sEl.textContent=i18n[lang].thankText;
+        if(ded) ded.style.display='block';
+        try{if(res.experienceId) sessionStorage.removeItem('pendingOrder_'+res.experienceId);}catch(e){}
+      } else if(low.includes('rechaz')||low.includes('cancel')||low.includes('rejected')||low.includes('expir')){
+        if(tEl) tEl.textContent=lang==='pt'?'Pagamento não concluído':'Pago no completado';
+        if(sEl) sEl.textContent=i18n[lang].payFail;
+        try{if(res.experienceId) sessionStorage.removeItem('pendingOrder_'+res.experienceId);}catch(e){}
+      } else if(low.includes('pend')||low.includes('reserv')){
+        if(attempts<4){
+          if(sEl) sEl.textContent=i18n[lang].step4+' ('+attempts+'/3)';
+          setTimeout(pollOrder, 2500);
+        } else {
+          if(tEl) tEl.textContent=lang==='pt'?'Pagamento em análise':'Pago pendiente de confirmación';
+          if(sEl) sEl.textContent=i18n[lang].payPending;
+        }
+      } else {
+        if(attempts<3){
+          setTimeout(pollOrder, 2500);
+        } else {
+          if(tEl) tEl.textContent=lang==='pt'?'Pagamento não concluído':'Pago no completado';
+          if(sEl) sEl.textContent=i18n[lang].payFail;
+        }
+      }
+    }, function(e){
+      if(attempts<3){
+        setTimeout(pollOrder, 2500);
+      } else {
+        const tEl=document.getElementById('payTitle');
+        const sEl=document.getElementById('payStatus');
+        if(tEl) tEl.textContent=lang==='pt'?'Pagamento não concluído':'Pago no completado';
+        if(sEl) sEl.textContent=i18n[lang].payFail;
+      }
+    });
+  }
+  pollOrder();
 }
 
 function closePayOverlay(){const o=document.getElementById('payOverlay'); if(o) o.style.display='none';}

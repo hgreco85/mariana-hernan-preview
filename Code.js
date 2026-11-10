@@ -145,6 +145,28 @@ function doPost(e){
       PropertiesService.getScriptProperties().setProperty(key, val);
       return ContentService.createTextOutput(JSON.stringify({ ok: true, key: key })).setMimeType(ContentService.MimeType.JSON);
     }
+    if(type === 'getExpiredOrders'){
+      const ops = opsSheet().getDataRange().getValues();
+      const now = Date.now();
+      const resMins = Number(PropertiesService.getScriptProperties().getProperty('RESERVATION_MINUTES')) || 15;
+      const expired = [];
+      for(let i=1; i<ops.length; i++){
+        const st = String(ops[i][2]);
+        const mpOrderId = String(ops[i][6]||'');
+        const mpPaymentId = String(ops[i][7]||'');
+        const created = ops[i][3] ? new Date(ops[i][3]).getTime() : 0;
+        if((st === 'Reservada' || st === 'Reservada temporalmente') && !mpPaymentId && (now - created > resMins * 60 * 1000)){
+          expired.push({
+            orderId: String(ops[i][0]),
+            experienceId: String(ops[i][1]),
+            mpOrderId: mpOrderId,
+            createdDate: ops[i][3],
+            ageMinutes: Math.round((now - created) / 60000)
+          });
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, reservationMinutes: resMins, expired: expired })).setMimeType(ContentService.MimeType.JSON);
+    }
 
     return ContentService.createTextOutput(JSON.stringify({ error: 'unknown type' })).setMimeType(ContentService.MimeType.JSON);
   } catch(err){
@@ -236,7 +258,28 @@ function getOrderPublic(orderId){
   const sh=opsSheet(); const data=sh.getDataRange().getValues(); const i=findOpRow(data,orderId);
   if(i<0) return {error:'not found'};
   const r=data[i];
-  return { orderId:String(r[0]), experienceId:String(r[1]), status:String(r[2]), currency:String(r[4]), amount:r[5], mpOrderId:String(r[6]||''), mpPaymentId:String(r[7]||'') };
+  const expId=String(r[1]||'');
+  let title=expId;
+  try {
+    const csh=catalogSheet();
+    const cdata=csh.getDataRange().getValues();
+    for(let j=1;j<cdata.length;j++){
+      if(String(cdata[j][0])===expId){
+        title=String(cdata[j][4]||expId);
+        break;
+      }
+    }
+  } catch(e){}
+  return {
+    orderId:String(r[0]),
+    experienceId:expId,
+    title:title,
+    status:String(r[2]),
+    currency:String(r[4]),
+    amount:r[5],
+    mpOrderId:String(r[6]||''),
+    mpPaymentId:String(r[7]||'')
+  };
 }
 
 function confirmPayment(orderId, mpStatus, mpPaymentId){
@@ -429,6 +472,21 @@ function reconcileSingleOrder(orderId, status, note){
   if(i<0) return { error: 'not found' };
   if(status) sh.getRange(i+1,3).setValue(status);
   if(note) sh.getRange(i+1,13).setValue(note);
+  const expId = String(data[i][1]||'');
+  const low = String(status||'').toLowerCase();
+  if(expId && (low.includes('cancel') || low.includes('expir') || low.includes('rechaz'))){
+    const csh = catalogSheet();
+    const cdata = csh.getDataRange().getValues();
+    for(let j=1; j<cdata.length; j++){
+      if(String(cdata[j][0]) === expId){
+        if(String(cdata[j][12]) !== 'Regalada y cobrada'){
+          csh.getRange(j+1, 13).setValue('Disponible');
+          csh.getRange(j+1, 20).clearContent();
+        }
+        break;
+      }
+    }
+  }
   return { ok: true, orderId: orderId, status: status };
 }
 

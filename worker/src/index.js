@@ -61,11 +61,14 @@ export async function createCheckoutPreference(env, order, deps = {}) {
     ? env.WORKER_WEBHOOK_URL.replace(/\/$/, '') + '/webhook/mp'
     : undefined;
 
+  const itemTitle = order.title || order.experienceId || 'Regalo de casamiento';
+  const itemDescription = order.title ? `${order.title} (${order.experienceId})` : (order.experienceId || '');
+
   const prefPayload = {
     items: [{
       id: experienceId,
-      title: order.title || experienceId,
-      description: experienceId || '',
+      title: itemTitle,
+      description: itemDescription,
       quantity: 1,
       currency_id: 'ARS',
       unit_price: Number(order.amount)
@@ -184,6 +187,74 @@ async function appsScriptPost(env, payload) {
   return { status: resp.status, data, text };
 }
 
+// Function to check and reconcile expired reservations
+export async function reconcileExpiredReservations(env, deps = {}) {
+  const fetchImpl = deps.fetchImpl || fetch;
+  const appsScriptPostImpl = deps.appsScriptPostImpl || appsScriptPost;
+  const token = env.MP_ACCESS_TOKEN;
+  if (!token || token.startsWith('REPLACE_')) return { ok: false, reason: 'no_token' };
+  
+  const info = await appsScriptPostImpl(env, { type: 'getExpiredOrders' });
+  const resMins = (info.data && info.data.reservationMinutes) || 15;
+  const expired = (info.data && Array.isArray(info.data.expired)) ? info.data.expired : [];
+  if (expired.length === 0) return { ok: true, count: 0, reservationMinutes: resMins };
+
+  let reconciled = 0;
+  for (const item of expired) {
+    if (item.mpOrderId) {
+      try {
+        const mpResp = await fetchImpl('https://api.mercadopago.com/v1/orders/' + encodeURIComponent(item.mpOrderId), {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (mpResp.status === 200) {
+          const mpOrder = await mpResp.json();
+          const payments = (mpOrder.transactions && Array.isArray(mpOrder.transactions.payments)) ? mpOrder.transactions.payments : [];
+          const hasActivePayment = payments.some(p => {
+            const s = String(p.status || '').toLowerCase();
+            return s === 'approved' || s === 'pending' || s === 'in_process' || s === 'authorized';
+          });
+          if (!hasActivePayment) {
+            const mpStatus = String(mpOrder.status || '').toLowerCase();
+            if (mpStatus === 'created' || mpStatus === 'action_required') {
+              await fetchImpl('https://api.mercadopago.com/v1/orders/' + encodeURIComponent(item.mpOrderId) + '/cancel', {
+                method: 'POST',
+                headers: {
+                  'Authorization': 'Bearer ' + token,
+                  'X-Idempotency-Key': item.orderId + '-cancel-expired'
+                }
+              });
+            }
+            await appsScriptPostImpl(env, {
+              type: 'reconcileOrder',
+              orderId: item.orderId,
+              status: 'Expirada (no abonada)',
+              note: 'Liberado: tiempo límite excedido sin pago acreditado'
+            });
+            reconciled++;
+          }
+        } else if (mpResp.status === 404) {
+          await appsScriptPostImpl(env, {
+            type: 'reconcileOrder',
+            orderId: item.orderId,
+            status: 'Expirada (no abonada)',
+            note: 'Liberado: orden no encontrada en Mercado Pago'
+          });
+          reconciled++;
+        }
+      } catch(e) {}
+    } else {
+      await appsScriptPostImpl(env, {
+        type: 'reconcileOrder',
+        orderId: item.orderId,
+        status: 'Expirada (no abonada)',
+        note: 'Liberado: reserva abandonada antes de checkout'
+      });
+      reconciled++;
+    }
+  }
+  return { ok: true, count: reconciled, reservationMinutes: resMins };
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') {
@@ -232,8 +303,81 @@ export default {
       }), 200);
     }
 
+    // Secure read-only order inspection in Mercado Pago LIVE (authenticated with SHARED_SECRET)
+    if (request.method === 'POST' && url.pathname === '/api/admin/inspect-order') {
+      let body;
+      try { body = await request.json(); } catch (e) { body = {}; }
+      if (!body.secret || !constantTimeEqual(body.secret, env.SHARED_SECRET || '')) {
+        return corsResponse(JSON.stringify({ error: 'unauthorized' }), 401);
+      }
+      const mpOrderId = body.mpOrderId;
+      if (!mpOrderId) return corsResponse(JSON.stringify({ error: 'missing mpOrderId' }), 400);
+      const token = env.MP_ACCESS_TOKEN;
+      if (!token || token.startsWith('REPLACE_')) {
+        return corsResponse(JSON.stringify({ error: 'MP_ACCESS_TOKEN not configured' }), 503);
+      }
+      const resp = await fetch('https://api.mercadopago.com/v1/orders/' + encodeURIComponent(mpOrderId), {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await resp.json();
+      return corsResponse(JSON.stringify({
+        status: resp.status,
+        mpOrder: {
+          id: data.id,
+          status: data.status,
+          status_detail: data.status_detail,
+          total_amount: data.total_amount,
+          external_reference: data.external_reference,
+          items: data.items,
+          transactions: data.transactions,
+          date_created: data.date_created,
+          expiration_time: data.expiration_time
+        }
+      }), resp.status);
+    }
+
+    // Secure order cancellation probe in Mercado Pago (authenticated with SHARED_SECRET)
+    if (request.method === 'POST' && url.pathname === '/api/admin/cancel-order') {
+      let body;
+      try { body = await request.json(); } catch (e) { body = {}; }
+      if (!body.secret || !constantTimeEqual(body.secret, env.SHARED_SECRET || '')) {
+        return corsResponse(JSON.stringify({ error: 'unauthorized' }), 401);
+      }
+      const mpOrderId = body.mpOrderId;
+      const orderId = body.orderId;
+      if (!mpOrderId) return corsResponse(JSON.stringify({ error: 'missing mpOrderId' }), 400);
+      const token = env.MP_ACCESS_TOKEN;
+      if (!token || token.startsWith('REPLACE_')) {
+        return corsResponse(JSON.stringify({ error: 'MP_ACCESS_TOKEN not configured' }), 503);
+      }
+
+      // Official Mercado Pago Orders API cancellation: POST /v1/orders/:id/cancel with X-Idempotency-Key
+      let postCancelJson = null;
+      const postResp = await fetch('https://api.mercadopago.com/v1/orders/' + encodeURIComponent(mpOrderId) + '/cancel', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'X-Idempotency-Key': (orderId || mpOrderId) + '-cancel'
+        }
+      });
+      const postCancelStatus = postResp.status;
+      try { postCancelJson = await postResp.json(); } catch(e) {}
+
+      return corsResponse(JSON.stringify({
+        postCancelStatus,
+        postCancelJson
+      }), postCancelStatus === 200 || postCancelStatus === 201 ? 200 : postCancelStatus);
+    }
+
+    // Reconcile expired reservations (safe, checks Mercado Pago first)
+    if (url.pathname === '/api/reconcile-expired') {
+      const res = await reconcileExpiredReservations(env);
+      return corsResponse(JSON.stringify(res), res.ok ? 200 : 500);
+    }
+
     // Public catalog proxy (read-only, no secret)
     if (request.method === 'GET' && url.pathname === '/api/catalog') {
+      try { await reconcileExpiredReservations(env); } catch(e) {}
       const info = await appsScriptGet(env, { format: 'json' });
       return corsResponse(info.text, info.status);
     }
@@ -272,6 +416,9 @@ export default {
 
       const payerEmail = order.guestEmail || (env.LIVE_MODE === 'true' ? null : 'test_user_8372187013275911136@testuser.com');
 
+      const itemTitle = order.title || order.experienceId || 'Regalo de casamiento';
+      const itemDescription = order.title ? `${order.title} (${order.experienceId})` : (order.experienceId || '');
+
       // Mercado Pago Orders API (/v1/orders)
       const ordersPayload = {
         type: 'online',
@@ -279,8 +426,8 @@ export default {
         external_reference: orderId,
         processing_mode: 'manual',
         capture_mode: 'automatic_async',
-        expiration_time: 'P1D',
-        description: order.title || order.experienceId || orderId,
+        expiration_time: 'PT30M',
+        description: itemTitle,
         config: {
           online: {
             success_url: `${appReturnUrl}?mp_status=approved&order=${encodeURIComponent(orderId)}`,
@@ -291,8 +438,8 @@ export default {
           payment_method: { max_installments: 12 }
         },
         items: [{
-          title: order.title || order.experienceId || orderId,
-          description: order.experienceId || '',
+          title: itemTitle,
+          description: itemDescription,
           category_id: 'travel',
           quantity: 1,
           unit_price: amount,

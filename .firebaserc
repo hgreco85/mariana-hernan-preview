@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "hg-market-system"
+  },
+  "targets": {
+    "hg-market-system": {
+      "hosting": {
+        "wedding": [
+          "marianayhernan"
+        ]
+      }
+    }
+  }
+}
