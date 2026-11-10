@@ -202,6 +202,36 @@ export default {
       }), 200);
     }
 
+    // Secure seller verification probe (authenticated with SHARED_SECRET in POST body)
+    if (request.method === 'POST' && url.pathname === '/api/verify-seller') {
+      let body;
+      try { body = await request.json(); } catch (e) { body = {}; }
+      if (!body.secret || !constantTimeEqual(body.secret, env.SHARED_SECRET || '')) {
+        return corsResponse(JSON.stringify({ error: 'unauthorized' }), 401);
+      }
+      const token = env.MP_ACCESS_TOKEN;
+      if (!token || token.startsWith('REPLACE_')) {
+        return corsResponse(JSON.stringify({ error: 'MP_ACCESS_TOKEN not configured' }), 503);
+      }
+      const resp = await fetch('https://api.mercadopago.com/users/me', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (resp.status !== 200) {
+        return corsResponse(JSON.stringify({ error: 'failed to fetch user info', status: resp.status }), 502);
+      }
+      const u = await resp.json();
+      const isTestUser = Array.isArray(u.tags) && u.tags.includes('test_user');
+      const matchesTargetSeller = String(u.id) === '84725274';
+      return corsResponse(JSON.stringify({
+        ok: matchesTargetSeller && !isTestUser,
+        sellerId: u.id,
+        nickname: u.nickname,
+        siteId: u.site_id,
+        isTestUser,
+        matchesTargetSeller
+      }), 200);
+    }
+
     // Public catalog proxy (read-only, no secret)
     if (request.method === 'GET' && url.pathname === '/api/catalog') {
       const info = await appsScriptGet(env, { format: 'json' });
