@@ -2,6 +2,9 @@ name = "mp-webhook"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
 
+[triggers]
+crons = ["*/5 * * * *"]
+
 [vars]
 # Active Apps Script deployment URL (Web App staging v36)
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx5YvudciPjG0OUmqSjOocMHxLMFZy2MTN9V3VrBb5FQP_VK1B7O3T3z8aiZP574K1E/exec"
@@ -34,3 +37,6 @@ MP_API_MODE = "orders"
 LIVE_MODE = "true"
 APP_URL = "https://marianayhernan.web.app/"
 WORKER_WEBHOOK_URL = "https://mp-webhook-production.hgreco85.workers.dev"
+
+[env.production.triggers]
+crons = ["*/5 * * * *"]

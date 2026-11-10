@@ -947,5 +947,9 @@ export default {
     }
 
     return new Response('not found', { status: 404, headers: CORS });
+  },
+
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(reconcileExpiredReservations(env));
   }
 };
