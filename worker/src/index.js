@@ -321,13 +321,18 @@ export default {
             const o = await resp.json();
             let paymentStatus = o.status;
             let mpPaymentId = '';
-            try {
-              const payments = o.transactions && o.transactions.payments;
-              if (payments && payments.length) {
-                paymentStatus = payments[0].status || paymentStatus;
-                mpPaymentId = payments[0].id || '';
-              }
-            } catch (e) {}
+            const payments = (o.transactions && Array.isArray(o.transactions.payments)) ? o.transactions.payments : [];
+            const approved = payments.find(p => p.status === 'approved' || p.status === 'processed');
+            if (approved) {
+              paymentStatus = 'approved';
+              mpPaymentId = String(approved.id || mpPaymentId);
+            } else if (payments.length > 0) {
+              const last = payments[payments.length - 1];
+              paymentStatus = (last.status === 'processed' || last.status === 'closed') ? 'approved' : (last.status || paymentStatus);
+              mpPaymentId = String(last.id || mpPaymentId);
+            } else if (o.status === 'processed' || o.status === 'closed') {
+              paymentStatus = 'approved';
+            }
             await appsScriptPost(env, {
               type: 'confirm',
               orderId,
