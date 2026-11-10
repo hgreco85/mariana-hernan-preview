@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const source=fs.readFileSync('Code.js','utf8');
+const source=fs.readFileSync(new URL('../Code.js', import.meta.url),'utf8');
 const begin=source.indexOf('function unsettledPaymentOrder(');
 const end=source.indexOf('function releaseExpiredReservations()',begin);
 assert.ok(begin>=0 && end>begin,'guard helper present');

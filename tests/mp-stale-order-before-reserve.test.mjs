@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-const source=fs.readFileSync('Code.js','utf8');
+const source=fs.readFileSync(new URL('../Code.js', import.meta.url),'utf8');
 const guardStart=source.indexOf('function unsettledPaymentOrder(');
 const guardEnd=source.indexOf('function releaseExpiredReservations()', guardStart);
 const reserveStart=source.indexOf('function reserveExperience(');

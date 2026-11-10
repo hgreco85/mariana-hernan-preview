@@ -192,6 +192,8 @@ export default {
         ? env.WORKER_WEBHOOK_URL.replace(/\/$/, '') + '/webhook/mp'
         : undefined;
 
+      const payerEmail = order.guestEmail || (env.LIVE_MODE === 'true' ? null : 'test_user_8372187013275911136@testuser.com');
+
       // Mercado Pago Orders API (/v1/orders)
       const ordersPayload = {
         type: 'online',
@@ -219,6 +221,9 @@ export default {
           type: 'travel'
         }]
       };
+      if (payerEmail) {
+        ordersPayload.payer = { email: payerEmail };
+      }
 
       let resp = await fetch('https://api.mercadopago.com/v1/orders', {
         method: 'POST',
