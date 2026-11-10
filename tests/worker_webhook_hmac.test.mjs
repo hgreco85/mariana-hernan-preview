@@ -616,3 +616,21 @@ test('Security & Negative Tests: Webhook marks rejected payment as rejected', as
     globalThis.fetch = origFetch;
   }
 });
+
+
+test('Production fail-closed: processed payment without accredited detail is never approved', () => {
+  const result = resolveOrderStatus({ status: 'processed', transactions: { payments: [{ id: 'pay-unverified', status: 'processed' }] } });
+  assert.notEqual(result.status, 'approved');
+});
+
+test('Production fail-closed: processed order without transaction must not approve', () => {
+  const result = resolveOrderStatus({ status: 'processed', status_detail: 'accredited', transactions: { payments: [] } });
+  assert.equal(result.status, 'pending');
+  assert.equal(result.paymentId, '');
+});
+
+test('Production: processed payment with accredited detail approves with payment ID', () => {
+  const result = resolveOrderStatus({ status: 'processed', transactions: { payments: [{ id: 'pay-auth-42', status: 'processed', status_detail: 'accredited' }] } });
+  assert.equal(result.status, 'approved');
+  assert.equal(result.paymentId, 'pay-auth-42');
+});
