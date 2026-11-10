@@ -108,6 +108,56 @@ export async function createCheckoutPreference(env, order, deps = {}) {
   };
 }
 
+// Securely resolve Mercado Pago Orders API status
+// Only an accredited payment (approved, or processed with accredited detail) can be confirmed as approved.
+// A closed, canceled, or failed order without an accredited payment is NEVER approved.
+export function resolveOrderStatus(o) {
+  const payments = (o && o.transactions && Array.isArray(o.transactions.payments)) ? o.transactions.payments : [];
+  const approvedPayment = payments.find(p => 
+    p.status === 'approved' || 
+    (p.status === 'processed' && (p.status_detail === 'accredited' || !p.status_detail))
+  );
+
+  if (approvedPayment) {
+    return {
+      status: 'approved',
+      paymentId: String(approvedPayment.id || '')
+    };
+  }
+
+  if (payments.length > 0) {
+    const last = payments[payments.length - 1];
+    const pStatus = String(last.status || '').toLowerCase();
+    if (pStatus === 'rejected' || pStatus === 'cancelled' || pStatus === 'failed') {
+      return { status: 'rejected', paymentId: String(last.id || '') };
+    }
+    if (pStatus === 'pending' || pStatus === 'in_process' || pStatus === 'authorized') {
+      return { status: 'pending', paymentId: String(last.id || '') };
+    }
+    if (pStatus === 'refunded' || pStatus === 'charged_back') {
+      return { status: pStatus, paymentId: String(last.id || '') };
+    }
+    return { status: pStatus || 'pending', paymentId: String(last.id || '') };
+  }
+
+  const oStatus = String((o && o.status) || '').toLowerCase();
+  if (oStatus === 'canceled' || oStatus === 'expired' || oStatus === 'failed' || oStatus === 'closed') {
+    return { status: 'cancelled', paymentId: '' };
+  }
+  if (oStatus === 'action_required') {
+    return { status: 'pending', paymentId: '' };
+  }
+  if (oStatus === 'processed') {
+    const oDetail = String((o && o.status_detail) || '').toLowerCase();
+    if (oDetail === 'accredited') {
+      return { status: 'approved', paymentId: '' };
+    }
+    return { status: 'cancelled', paymentId: '' };
+  }
+
+  return { status: oStatus || 'pending', paymentId: '' };
+}
+
 // Public read-only GET (no secrets transmitted in URL query parameters)
 async function appsScriptGet(env, params) {
   const url = new URL(env.APPS_SCRIPT_URL);
@@ -319,25 +369,12 @@ export default {
           });
           if (resp.status === 200) {
             const o = await resp.json();
-            let paymentStatus = o.status;
-            let mpPaymentId = '';
-            const payments = (o.transactions && Array.isArray(o.transactions.payments)) ? o.transactions.payments : [];
-            const approved = payments.find(p => p.status === 'approved' || p.status === 'processed');
-            if (approved) {
-              paymentStatus = 'approved';
-              mpPaymentId = String(approved.id || mpPaymentId);
-            } else if (payments.length > 0) {
-              const last = payments[payments.length - 1];
-              paymentStatus = (last.status === 'processed' || last.status === 'closed') ? 'approved' : (last.status || paymentStatus);
-              mpPaymentId = String(last.id || mpPaymentId);
-            } else if (o.status === 'processed' || o.status === 'closed') {
-              paymentStatus = 'approved';
-            }
+            const resolved = resolveOrderStatus(o);
             await appsScriptPost(env, {
               type: 'confirm',
               orderId,
-              status: paymentStatus,
-              paymentId: mpPaymentId
+              status: resolved.status,
+              paymentId: resolved.paymentId
             });
           }
         }
@@ -447,19 +484,9 @@ export default {
           if (resp.status === 200) {
             const o = await resp.json();
             orderId = o.external_reference || null;
-            mpStatus = o.status || 'pending';
-            const payments = o.transactions && Array.isArray(o.transactions.payments) ? o.transactions.payments : [];
-            const approved = payments.find(p => p.status === 'approved');
-            if (approved) {
-              mpStatus = 'approved';
-              mpPaymentId = String(approved.id || mpPaymentId);
-            } else if (payments.length > 0) {
-              const last = payments[payments.length - 1];
-              mpStatus = last.status || mpStatus;
-              mpPaymentId = String(last.id || mpPaymentId);
-            } else if (o.status === 'processed' || o.status === 'closed') {
-              mpStatus = 'approved';
-            }
+            const res = resolveOrderStatus(o);
+            mpStatus = res.status;
+            mpPaymentId = res.paymentId || mpPaymentId;
           }
         } else if (isMerchantOrderEvent) {
           const resp = await fetch('https://api.mercadopago.com/merchant_orders/' + encodeURIComponent(resourceId), { headers: authHeaders });
@@ -494,19 +521,9 @@ export default {
           if (orderResp.status === 200) {
             const o = await orderResp.json();
             orderId = o.external_reference || null;
-            mpStatus = o.status || 'pending';
-            const payments = o.transactions && Array.isArray(o.transactions.payments) ? o.transactions.payments : [];
-            const approved = payments.find(p => p.status === 'approved');
-            if (approved) {
-              mpStatus = 'approved';
-              mpPaymentId = String(approved.id || mpPaymentId);
-            } else if (payments.length > 0) {
-              const last = payments[payments.length - 1];
-              mpStatus = last.status || mpStatus;
-              mpPaymentId = String(last.id || mpPaymentId);
-            } else if (o.status === 'processed' || o.status === 'closed') {
-              mpStatus = 'approved';
-            }
+            const res = resolveOrderStatus(o);
+            mpStatus = res.status;
+            mpPaymentId = res.paymentId || mpPaymentId;
             resolved = true;
           }
           if (!resolved) {

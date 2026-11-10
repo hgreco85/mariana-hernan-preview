@@ -21,3 +21,16 @@ WORKER_WEBHOOK_URL = "https://mp-webhook.hgreco85.workers.dev"
 # - SHARED_SECRET
 # - MP_ACCESS_TOKEN
 # - MP_WEBHOOK_SECRET
+
+# PRODUCTION ENVIRONMENT CONFIGURATION (Separated resource & trigger, USD 0 incremental cost)
+# Deployment command: npx wrangler deploy --env production
+# Secrets: npx wrangler secret put <NAME> --env production
+[env.production]
+name = "mp-webhook-production"
+[env.production.vars]
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxu_sXQWaK0ybz3CrHwfHp45jTWsh7ss3OgiNI3upHXK9VVyptiiVSksc_2wD391b1N/exec"
+MP_API_MODE = "orders"
+# Strictly kept false until explicit human live authorization
+LIVE_MODE = "false"
+APP_URL = "https://marianayhernan.web.app/"
+WORKER_WEBHOOK_URL = "https://mp-webhook-production.hgreco85.workers.dev"

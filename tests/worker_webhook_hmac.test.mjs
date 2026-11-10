@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import worker from '../worker/src/index.js';
+import worker, { resolveOrderStatus } from '../worker/src/index.js';
 
 const SHARED_SECRET = 'test-shared-secret-123';
 const MP_WEBHOOK_SECRET = 'mp-secret-test-xyz';
@@ -448,6 +448,170 @@ test('Webhook processes "payment" notification (v1/payments fallback/direct)', a
     assert.equal(appsScriptConfirmedPayload.orderId, 'ORD-TEST-PAY-1');
     assert.equal(appsScriptConfirmedPayload.status, 'approved');
     assert.equal(appsScriptConfirmedPayload.paymentId, paymentId);
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
+test('Security & Negative Tests: resolveOrderStatus handles all official Orders API terminal states', () => {
+  // 1. Never assume closed = approved: closed order without accredited payment is cancelled
+  const closedNoPayment = resolveOrderStatus({ status: 'closed', transactions: { payments: [] } });
+  assert.equal(closedNoPayment.status, 'cancelled');
+  assert.equal(closedNoPayment.paymentId, '');
+
+  // 2. Canceled / expired orders
+  const canceledOrder = resolveOrderStatus({ status: 'canceled', transactions: { payments: [] } });
+  assert.equal(canceledOrder.status, 'cancelled');
+
+  const expiredOrder = resolveOrderStatus({ status: 'expired', transactions: { payments: [] } });
+  assert.equal(expiredOrder.status, 'cancelled');
+
+  // 3. Action required is pending
+  const actionRequired = resolveOrderStatus({ status: 'action_required', transactions: { payments: [] } });
+  assert.equal(actionRequired.status, 'pending');
+
+  // 4. Rejected / failed payment inside transactions
+  const rejectedPayment = resolveOrderStatus({
+    status: 'failed',
+    transactions: {
+      payments: [{ id: 'pay-fail-1', status: 'rejected', status_detail: 'high_risk' }]
+    }
+  });
+  assert.equal(rejectedPayment.status, 'rejected');
+  assert.equal(rejectedPayment.paymentId, 'pay-fail-1');
+
+  // 5. Pending payment inside transactions
+  const pendingPayment = resolveOrderStatus({
+    status: 'action_required',
+    transactions: {
+      payments: [{ id: 'pay-pend-1', status: 'pending', status_detail: 'waiting_payment' }]
+    }
+  });
+  assert.equal(pendingPayment.status, 'pending');
+  assert.equal(pendingPayment.paymentId, 'pay-pend-1');
+
+  // 6. Accredited payment is verified as approved
+  const accreditedPayment = resolveOrderStatus({
+    status: 'processed',
+    transactions: {
+      payments: [{ id: 'pay-acc-1', status: 'processed', status_detail: 'accredited' }]
+    }
+  });
+  assert.equal(accreditedPayment.status, 'approved');
+  assert.equal(accreditedPayment.paymentId, 'pay-acc-1');
+
+  // 7. Legacy approved status
+  const legacyApproved = resolveOrderStatus({
+    status: 'closed',
+    transactions: {
+      payments: [{ id: 'pay-leg-1', status: 'approved' }]
+    }
+  });
+  assert.equal(legacyApproved.status, 'approved');
+  assert.equal(legacyApproved.paymentId, 'pay-leg-1');
+});
+
+test('Security & Negative Tests: Webhook never marks closed order without payment as approved', async () => {
+  const origFetch = globalThis.fetch;
+  const orderId = 'ORDTST-CLOSED-ORDER';
+  const reqId = 'req-closed-test';
+  const ts = Math.floor(Date.now() / 1000);
+  const sigHeader = generateSignature(MP_WEBHOOK_SECRET, orderId, reqId, ts);
+
+  let appsScriptConfirmedPayload = null;
+
+  globalThis.fetch = async (url, opts) => {
+    const urlStr = String(url);
+    if (urlStr.includes('/v1/orders/' + orderId)) {
+      return new Response(JSON.stringify({
+        id: orderId,
+        status: 'closed',
+        external_reference: 'ORD-V09-001-CLOSED',
+        transactions: { payments: [] }
+      }), { status: 200 });
+    }
+    if (urlStr.includes('mock.script.google.com')) {
+      appsScriptConfirmedPayload = JSON.parse(opts.body);
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }
+    throw new Error('Unexpected fetch call: ' + urlStr);
+  };
+
+  try {
+    const req = new Request('https://worker.test/webhook/mp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-signature': sigHeader,
+        'x-request-id': reqId
+      },
+      body: JSON.stringify({
+        action: 'order.updated',
+        data: { id: orderId },
+        type: 'order'
+      })
+    });
+
+    const res = await worker.fetch(req, mockEnv);
+    assert.equal(res.status, 200);
+    assert.ok(appsScriptConfirmedPayload);
+    assert.equal(appsScriptConfirmedPayload.orderId, 'ORD-V09-001-CLOSED');
+    assert.notEqual(appsScriptConfirmedPayload.status, 'approved');
+    assert.equal(appsScriptConfirmedPayload.status, 'cancelled');
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
+test('Security & Negative Tests: Webhook marks rejected payment as rejected', async () => {
+  const origFetch = globalThis.fetch;
+  const orderId = 'ORDTST-REJECTED-ORDER';
+  const reqId = 'req-rejected-test';
+  const ts = Math.floor(Date.now() / 1000);
+  const sigHeader = generateSignature(MP_WEBHOOK_SECRET, orderId, reqId, ts);
+
+  let appsScriptConfirmedPayload = null;
+
+  globalThis.fetch = async (url, opts) => {
+    const urlStr = String(url);
+    if (urlStr.includes('/v1/orders/' + orderId)) {
+      return new Response(JSON.stringify({
+        id: orderId,
+        status: 'failed',
+        external_reference: 'ORD-V09-001-REJECTED',
+        transactions: {
+          payments: [{ id: 'pay-rejected-1', status: 'rejected', status_detail: 'cc_rejected_insufficient_amount' }]
+        }
+      }), { status: 200 });
+    }
+    if (urlStr.includes('mock.script.google.com')) {
+      appsScriptConfirmedPayload = JSON.parse(opts.body);
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }
+    throw new Error('Unexpected fetch call: ' + urlStr);
+  };
+
+  try {
+    const req = new Request('https://worker.test/webhook/mp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-signature': sigHeader,
+        'x-request-id': reqId
+      },
+      body: JSON.stringify({
+        action: 'order.updated',
+        data: { id: orderId },
+        type: 'order'
+      })
+    });
+
+    const res = await worker.fetch(req, mockEnv);
+    assert.equal(res.status, 200);
+    assert.ok(appsScriptConfirmedPayload);
+    assert.equal(appsScriptConfirmedPayload.orderId, 'ORD-V09-001-REJECTED');
+    assert.equal(appsScriptConfirmedPayload.status, 'rejected');
+    assert.equal(appsScriptConfirmedPayload.paymentId, 'pay-rejected-1');
   } finally {
     globalThis.fetch = origFetch;
   }
