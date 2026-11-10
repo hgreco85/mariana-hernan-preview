@@ -115,7 +115,7 @@ export function resolveOrderStatus(o) {
   const payments = (o && o.transactions && Array.isArray(o.transactions.payments)) ? o.transactions.payments : [];
   const approvedPayment = payments.find(p => 
     p.status === 'approved' || 
-    (p.status === 'processed' && (p.status_detail === 'accredited' || !p.status_detail))
+    (p.status === 'processed' && p.status_detail === 'accredited')
   );
 
   if (approvedPayment) {
@@ -149,10 +149,8 @@ export function resolveOrderStatus(o) {
   }
   if (oStatus === 'processed') {
     const oDetail = String((o && o.status_detail) || '').toLowerCase();
-    if (oDetail === 'accredited') {
-      return { status: 'approved', paymentId: '' };
-    }
-    return { status: 'cancelled', paymentId: '' };
+    // The order status alone cannot prove funds were credited. Require payment evidence.
+    return { status: 'pending', paymentId: '' };
   }
 
   return { status: oStatus || 'pending', paymentId: '' };
