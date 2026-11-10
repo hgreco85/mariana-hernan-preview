@@ -85,6 +85,9 @@ document.getElementById("cards").addEventListener("click",e=>{const card=e.targe
 document.getElementById("cards").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.closest("[data-gift]")){e.preventDefault();showGift(e.target.closest("[data-gift]").dataset.gift)}});
 
 function giftExperience(id){
+  // Preview is read-only: never reserve inventory or create checkout orders.
+  alert('Modo vista previa: pagos y reservas deshabilitados.');
+  return;
   const btn=document.getElementById('giftBtn');
   if(btn){btn.disabled=true;btn.textContent=i18n[lang].confirming;}
   api.reserveExperience(id, function(res){
