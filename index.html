@@ -19,14 +19,20 @@ const api = {
     }
   },
   getOrderStatus: function(orderId, onSuccess, onFailure) {
-    if (window.google && google.script && google.script.run) {
-      google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure).getOrderStatus(orderId);
-    } else {
-      fetch(WORKER_URL + '/api/order-status?orderId=' + encodeURIComponent(orderId))
-        .then(r => r.json())
-        .then(onSuccess)
-        .catch(onFailure);
+    const p = new Promise(function(resolve, reject) {
+      if (window.google && google.script && google.script.run) {
+        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getOrderStatus(orderId);
+      } else {
+        fetch(WORKER_URL + '/api/order-status?orderId=' + encodeURIComponent(orderId))
+          .then(function(r) { return r.json(); })
+          .then(resolve)
+          .catch(reject);
+      }
+    });
+    if (typeof onSuccess === 'function') {
+      p.then(onSuccess).catch(function(e) { if (typeof onFailure === 'function') onFailure(e); });
     }
+    return p;
   },
   saveDedication: function(orderId, name, text, onSuccess, onFailure) {
     if (window.google && google.script && google.script.run) {
@@ -232,7 +238,7 @@ function showPayOverlay(status, order){
   let attempts=0;
   function pollOrder(){
     attempts++;
-    api.getOrderStatus(order, function(res){
+    api.getOrderStatus(order).then(function(res){
       const st=(res && res.status)?String(res.status):'';
       const low=st.toLowerCase();
       const tEl=document.getElementById('payTitle');
@@ -263,7 +269,7 @@ function showPayOverlay(status, order){
           if(sEl) sEl.textContent=i18n[lang].payFail;
         }
       }
-    }, function(e){
+    }).catch(function(e){
       if(attempts<3){
         setTimeout(pollOrder, 2500);
       } else {

@@ -24,7 +24,19 @@ function constantTimeEqual(a, b) {
 // Checkout Pro preference used by the non-strict fallback and by the local sandbox smoke test.
 // sandboxOnly refuses live mode and non-TEST tokens before any network call, and omits
 // notification_url so a smoke preference is not subscribed to a deployed webhook.
-export async function createCheckoutPreference(env, order, deps = {}) {
+export async function createCheckoutPreference(arg1, arg2, arg3) {
+  // Flexible signature: supports both (env, order, deps) and (order, env, deps/fetch).
+  let env, order, deps = {};
+  if (arg1 && typeof arg1 === 'object' && (arg1.orderId || arg1.experienceId || arg1.amountArs !== undefined || arg1.amount !== undefined)) {
+    order = arg1;
+    env = arg2 || {};
+    deps = typeof arg3 === 'function' ? { fetchImpl: arg3 } : (arg3 || {});
+  } else {
+    env = arg1 || {};
+    order = arg2 || {};
+    deps = typeof arg3 === 'function' ? { fetchImpl: arg3 } : (arg3 || {});
+  }
+
   const fetchImpl = deps.fetchImpl || fetch;
   const token = env && env.MP_ACCESS_TOKEN;
   const sandboxOnly = deps.sandboxOnly === true;
@@ -63,6 +75,111 @@ export async function createCheckoutPreference(env, order, deps = {}) {
 
   const itemTitle = order.title || order.experienceId || 'Regalo de casamiento';
   const itemDescription = order.title ? `${order.title} (${order.experienceId})` : (order.experienceId || '');
+  const amount = Number(order.amountArs !== undefined ? order.amountArs : (order.amount || 0));
+
+  // Sandbox smoke path: keep legacy Checkout Pro preferences.
+  if (sandboxOnly) {
+    const prefPayload = {
+      items: [{
+        id: experienceId,
+        title: itemTitle,
+        description: itemDescription,
+        quantity: 1,
+        currency_id: 'ARS',
+        unit_price: amount
+      }],
+      external_reference: orderId,
+      back_urls: {
+        success: `${appReturnUrl}?mp_status=approved&order=${encodeURIComponent(orderId)}`,
+        pending: `${appReturnUrl}?mp_status=pending&order=${encodeURIComponent(orderId)}`,
+        failure: `${appReturnUrl}?mp_status=failure&order=${encodeURIComponent(orderId)}`
+      },
+      auto_return: 'approved'
+    };
+    if (notificationUrl) prefPayload.notification_url = notificationUrl;
+
+    const resp = await fetchImpl('https://api.mercadopago.com/checkout/preferences', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify(prefPayload),
+      redirect: 'manual'
+    });
+    const text = await resp.text();
+    let json = {};
+    try { json = JSON.parse(text); } catch (e) {}
+    const checkoutUrl = (env.LIVE_MODE === 'true' && json.init_point)
+      ? json.init_point
+      : (json.sandbox_init_point || json.init_point || null);
+    const preferenceId = json.id === undefined || json.id === null ? null : String(json.id);
+    const ok = resp.status >= 200 && resp.status < 300 && Boolean(json.init_point || json.sandbox_init_point);
+    return {
+      ok,
+      status: resp.status,
+      json,
+      text,
+      checkoutUrl,
+      preferenceId,
+      title: itemTitle,
+      reason: ok ? 'ok' : 'preference_failed'
+    };
+  }
+
+  // Orders API path (primary for production and E2E)
+  const expirationTime = 'PT30M';
+  const ordersPayload = {
+    type: 'online',
+    total_amount: amount.toFixed(2),
+    external_reference: orderId,
+    processing_mode: 'manual',
+    capture_mode: 'automatic_async',
+    expiration_time: expirationTime,
+    description: itemTitle,
+    items: [{
+      title: itemTitle,
+      description: itemDescription,
+      category_id: 'travel',
+      quantity: 1,
+      unit_price: amount.toFixed(2),
+      type: 'travel'
+    }]
+  };
+
+  const resp = await fetchImpl('https://api.mercadopago.com/v1/orders', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + token
+    },
+    body: JSON.stringify(ordersPayload),
+    redirect: 'manual'
+  });
+  const text = await resp.text();
+  let json = {};
+  try { json = JSON.parse(text); } catch (e) {}
+  const checkoutUrl = json.checkout_url || (json.type_response && json.type_response.ticket_url) || json.ticket_url || json.init_point || null;
+  const preferenceId = json.id === undefined || json.id === null ? null : String(json.id);
+  const ok = resp.status >= 200 && resp.status < 300 && Boolean(preferenceId);
+  if (ok) {
+    return {
+      ok,
+      status: resp.status,
+      json,
+      text,
+      checkoutUrl,
+      preferenceId,
+      title: itemTitle,
+      expirationTime,
+      reason: 'ok'
+    };
+  }
+
+  // Fallback to Checkout Pro preferences outside strict orders mode
+  if (env.MP_API_MODE && env.MP_API_MODE !== 'auto') {
+    return { ok, status: resp.status, json, text, checkoutUrl: null, preferenceId, title: itemTitle, expirationTime, reason: 'orders_failed' };
+  }
 
   const prefPayload = {
     items: [{
@@ -71,7 +188,7 @@ export async function createCheckoutPreference(env, order, deps = {}) {
       description: itemDescription,
       quantity: 1,
       currency_id: 'ARS',
-      unit_price: Number(order.amount)
+      unit_price: amount
     }],
     external_reference: orderId,
     back_urls: {
@@ -83,7 +200,7 @@ export async function createCheckoutPreference(env, order, deps = {}) {
   };
   if (notificationUrl) prefPayload.notification_url = notificationUrl;
 
-  const resp = await fetchImpl('https://api.mercadopago.com/checkout/preferences', {
+  const prefResp = await fetchImpl('https://api.mercadopago.com/checkout/preferences', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -92,22 +209,24 @@ export async function createCheckoutPreference(env, order, deps = {}) {
     body: JSON.stringify(prefPayload),
     redirect: 'manual'
   });
-  const text = await resp.text();
-  let json = {};
-  try { json = JSON.parse(text); } catch (e) {}
-  const checkoutUrl = (env.LIVE_MODE === 'true' && json.init_point)
-    ? json.init_point
-    : (json.sandbox_init_point || json.init_point || null);
-  const preferenceId = json.id === undefined || json.id === null ? null : String(json.id);
-  const ok = resp.status >= 200 && resp.status < 300 && Boolean(json.init_point || json.sandbox_init_point);
+  const prefText = await prefResp.text();
+  let prefJson = {};
+  try { prefJson = JSON.parse(prefText); } catch (e) {}
+  const prefCheckoutUrl = (env.LIVE_MODE === 'true' && prefJson.init_point)
+    ? prefJson.init_point
+    : (prefJson.sandbox_init_point || prefJson.init_point || null);
+  const prefId = prefJson.id === undefined || prefJson.id === null ? null : String(prefJson.id);
+  const prefOk = prefResp.status >= 200 && prefResp.status < 300 && Boolean(prefJson.init_point || prefJson.sandbox_init_point);
   return {
-    ok,
-    status: resp.status,
-    json,
-    text,
-    checkoutUrl,
-    preferenceId,
-    reason: ok ? 'ok' : 'preference_failed'
+    ok: prefOk,
+    status: prefResp.status,
+    json: prefJson,
+    text: prefText,
+    checkoutUrl: prefCheckoutUrl,
+    preferenceId: prefId,
+    title: itemTitle,
+    expirationTime,
+    reason: prefOk ? 'ok' : 'preference_failed'
   };
 }
 
@@ -190,69 +309,123 @@ async function appsScriptPost(env, payload) {
 // Function to check and reconcile expired reservations
 export async function reconcileExpiredReservations(env, deps = {}) {
   const fetchImpl = deps.fetchImpl || fetch;
-  const appsScriptPostImpl = deps.appsScriptPostImpl || appsScriptPost;
-  const token = env.MP_ACCESS_TOKEN;
-  if (!token || token.startsWith('REPLACE_')) return { ok: false, reason: 'no_token' };
-  
-  const info = await appsScriptPostImpl(env, { type: 'getExpiredOrders' });
-  const resMins = (info.data && info.data.reservationMinutes) || 15;
-  const expired = (info.data && Array.isArray(info.data.expired)) ? info.data.expired : [];
-  if (expired.length === 0) return { ok: true, count: 0, reservationMinutes: resMins };
+  const appsScriptPostImpl = deps.postToAppsScriptImpl || deps.appsScriptPostImpl || appsScriptPost;
+  const token = env && env.MP_ACCESS_TOKEN;
+  if (!token || token.startsWith('REPLACE_') || token === 'REPLACE_WITH_MP_ACCESS_TOKEN') {
+    return { ok: false, reason: 'no_token', checked: 0, results: [] };
+  }
 
+  const info = await appsScriptPostImpl(env, { type: 'getExpiredOrders', action: 'getExpiredOrders' });
+  const data = (info && info.data) ? info.data : (info || {});
+  const resMins = (data && data.reservationMinutes) || 15;
+  const expiredRaw = (data && (data.expiredOrders || data.expired)) || [];
+  const expired = Array.isArray(expiredRaw) ? expiredRaw : [];
+  if (expired.length === 0) {
+    return { ok: true, checked: 0, count: 0, results: [], reservationMinutes: resMins };
+  }
+
+  const results = [];
   let reconciled = 0;
   for (const item of expired) {
-    if (item.mpOrderId) {
+    const orderId = item.orderId;
+    const mpOrderId = item.mpOrderId || item.mpPreferenceId || '';
+    const result = { orderId, canceledInMp: false, mpStatus: '', preserved: false };
+
+    if (mpOrderId) {
       try {
-        const mpResp = await fetchImpl('https://api.mercadopago.com/v1/orders/' + encodeURIComponent(item.mpOrderId), {
+        const mpResp = await fetchImpl('https://api.mercadopago.com/v1/orders/' + encodeURIComponent(mpOrderId), {
           headers: { 'Authorization': 'Bearer ' + token }
         });
         if (mpResp.status === 200) {
           const mpOrder = await mpResp.json();
-          const payments = (mpOrder.transactions && Array.isArray(mpOrder.transactions.payments)) ? mpOrder.transactions.payments : [];
+          const payments = (mpOrder.transactions && Array.isArray(mpOrder.transactions.payments))
+            ? mpOrder.transactions.payments
+            : [];
           const hasActivePayment = payments.some(p => {
             const s = String(p.status || '').toLowerCase();
             return s === 'approved' || s === 'pending' || s === 'in_process' || s === 'authorized';
           });
-          if (!hasActivePayment) {
-            const mpStatus = String(mpOrder.status || '').toLowerCase();
-            if (mpStatus === 'created' || mpStatus === 'action_required') {
-              await fetchImpl('https://api.mercadopago.com/v1/orders/' + encodeURIComponent(item.mpOrderId) + '/cancel', {
-                method: 'POST',
-                headers: {
-                  'Authorization': 'Bearer ' + token,
-                  'X-Idempotency-Key': item.orderId + '-cancel-expired'
-                }
-              });
-            }
-            await appsScriptPostImpl(env, {
-              type: 'reconcileOrder',
-              orderId: item.orderId,
-              status: 'Expirada (no abonada)',
-              note: 'Liberado: tiempo límite excedido sin pago acreditado'
-            });
-            reconciled++;
+          const paymentStatus = payments.length ? String(payments[payments.length - 1].status || '').toLowerCase() : '';
+
+          if (hasActivePayment) {
+            result.preserved = true;
+            result.paymentStatus = paymentStatus || 'pending';
+            result.mpStatus = paymentStatus || String(mpOrder.status || '').toLowerCase();
+            results.push(result);
+            continue;
           }
+
+          const mpStatus = String(mpOrder.status || '').toLowerCase();
+          if (mpStatus === 'created' || mpStatus === 'action_required') {
+            const cancelResp = await fetchImpl('https://api.mercadopago.com/v1/orders/' + encodeURIComponent(mpOrderId) + '/cancel', {
+              method: 'POST',
+              headers: {
+                'Authorization': 'Bearer ' + token,
+                'X-Idempotency-Key': orderId + '-cancel-expired'
+              }
+            });
+            let cancelJson = {};
+            try { cancelJson = await cancelResp.json(); } catch (e) {}
+            result.canceledInMp = cancelResp.status >= 200 && cancelResp.status < 300;
+            result.mpStatus = cancelJson && cancelJson.status ? String(cancelJson.status).toLowerCase() : 'canceled';
+          } else {
+            result.mpStatus = mpStatus || 'canceled';
+            result.canceledInMp = false;
+          }
+
+          await appsScriptPostImpl(env, {
+            type: 'reconcileOrder',
+            action: 'reconcileOrder',
+            orderId: orderId,
+            status: 'Expirada (no abonada)',
+            mpStatus: 'cancelled',
+            note: 'Liberado: tiempo límite excedido sin pago acreditado'
+          });
+          reconciled++;
         } else if (mpResp.status === 404) {
           await appsScriptPostImpl(env, {
             type: 'reconcileOrder',
-            orderId: item.orderId,
+            action: 'reconcileOrder',
+            orderId: orderId,
             status: 'Expirada (no abonada)',
+            mpStatus: 'cancelled',
             note: 'Liberado: orden no encontrada en Mercado Pago'
           });
+          result.mpStatus = 'canceled';
+          result.canceledInMp = false;
           reconciled++;
         }
-      } catch(e) {}
+      } catch (e) {
+        // leave preserved? On error, do not release
+        result.preserved = true;
+        result.mpStatus = 'error';
+      }
     } else {
       await appsScriptPostImpl(env, {
         type: 'reconcileOrder',
-        orderId: item.orderId,
+        action: 'reconcileOrder',
+        orderId: orderId,
         status: 'Expirada (no abonada)',
+        mpStatus: 'cancelled',
         note: 'Liberado: reserva abandonada antes de checkout'
       });
+      result.mpStatus = 'canceled';
+      result.canceledInMp = false;
       reconciled++;
     }
+
+    if (!result.preserved && !result.mpStatus) result.mpStatus = 'canceled';
+    results.push(result);
   }
-  return { ok: true, count: reconciled, reservationMinutes: resMins };
+
+  return {
+    ok: true,
+    checked: expired.length,
+    count: reconciled,
+    reconciled,
+    results,
+    reservationMinutes: resMins
+  };
 }
 
 export default {

@@ -473,8 +473,9 @@ function reconcileSingleOrder(orderId, status, note){
   if(status) sh.getRange(i+1,3).setValue(status);
   if(note) sh.getRange(i+1,13).setValue(note);
   const expId = String(data[i][1]||'');
+  const mpPaymentId = String(data[i][7]||'');
   const low = String(status||'').toLowerCase();
-  if(expId && (low.includes('cancel') || low.includes('expir') || low.includes('rechaz'))){
+  if(expId && !mpPaymentId && (low.includes('cancel') || low.includes('expir') || low.includes('rechaz'))){
     const csh = catalogSheet();
     const cdata = csh.getDataRange().getValues();
     for(let j=1; j<cdata.length; j++){
