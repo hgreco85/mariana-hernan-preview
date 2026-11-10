@@ -18,13 +18,14 @@ function getRotatedSecret() {
 
 const SHARED_SECRET = getRotatedSecret();
 
-test('Live Apps Script: Public catalog endpoint returns 62 experiences (GET, no secret)', async () => {
+test('Live Apps Script: Public catalog endpoint returns 63 experiences (GET, no secret)', async () => {
   const resp = await fetch(`${STAGING_URL}?format=json`);
   assert.equal(resp.status, 200);
   const data = await resp.json();
   assert.ok(Array.isArray(data));
-  assert.equal(data.length, 62);
+  assert.equal(data.length, 63);
   assert.equal(data[0].id, 'V09-001');
+  assert.ok(data.some(x => x.id === 'V09-081'));
 });
 
 test('Live Apps Script: Administrative actions in GET URL parameters are strictly forbidden', async () => {
@@ -52,7 +53,7 @@ test('Live Apps Script: Administrative POST requires valid rotated secret', asyn
   });
   assert.equal(authResp.status, 200);
   const stats = await authResp.json();
-  assert.equal(stats.total, 62);
+  assert.equal(stats.total, 63);
   assert.ok(stats.disponibles > 0);
 });
 

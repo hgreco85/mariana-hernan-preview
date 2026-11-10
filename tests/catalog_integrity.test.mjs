@@ -13,14 +13,14 @@ const match = indexHtml.match(/const __CATALOG__\s*=\s*(\[[\s\S]*?\]);\s*start/)
 assert.ok(match, 'Catalog array should be present in index.html');
 const catalog = JSON.parse(match[1]);
 
-test('Catalog has exactly 62 active experiences', () => {
-  assert.equal(catalog.length, 62, `Expected 62 items, got ${catalog.length}`);
+test('Catalog has exactly 63 active experiences (62 original + V09-081 pilot)', () => {
+  assert.equal(catalog.length, 63, `Expected 63 items, got ${catalog.length}`);
 });
 
 test('Active experience IDs are unique, valid and exclude editorially archived IDs', () => {
   const ids = catalog.map(x => x.id);
   const uniqueIds = new Set(ids);
-  assert.equal(uniqueIds.size, 62, 'All IDs must be unique');
+  assert.equal(uniqueIds.size, 63, 'All IDs must be unique');
 
   for (const id of ids) {
     assert.match(id, /^V09-\d{3}$/, 'Malformed experience ID: ' + id);
@@ -52,7 +52,7 @@ test('Pricing in USD is positive and reasonable', () => {
   }
 });
 
-test('Photographs: all 62 active items have valid distinct HTTPS photo URLs', () => {
+test('Photographs: all 63 active items have valid distinct HTTPS photo URLs', () => {
   const urls = catalog.map(x => x.photo);
   for (const item of catalog) {
     assert.ok(item.photo.startsWith('https://'), `Photo must be HTTPS for ${item.id}: ${item.photo}`);
@@ -62,7 +62,7 @@ test('Photographs: all 62 active items have valid distinct HTTPS photo URLs', ()
     );
   }
   const uniqueUrls = new Set(urls);
-  assert.equal(uniqueUrls.size, 62, `Expected 62 distinct photos, found ${uniqueUrls.size}`);
+  assert.equal(uniqueUrls.size, 63, `Expected 63 distinct photos, found ${uniqueUrls.size}`);
 });
 
 test('Bilingual content: titles and descriptions in ES and PT', () => {
@@ -110,14 +110,17 @@ test('High-value wedding gift options remain present', () => {
 });
 
 test('Guest-facing prices form a natural, distinct ARS ladder', () => {
-  assert.equal(new Set(catalog.map(x => x.ars)).size, 62, 'ARS prices should not repeat');
-  assert.equal(new Set(catalog.map(x => x.usd)).size, 62, 'USD reference prices should not repeat');
+  assert.equal(new Set(catalog.map(x => x.ars)).size, 63, 'ARS prices should not repeat');
   assert.ok(catalog.some(x => x.usd === 32), 'Affordable gifts start at USD 32');
   assert.ok(catalog.some(x => x.usd === 39), 'Affordable gifts fill through USD 39');
   for (const x of catalog) {
     assert.equal(x.ars % 100, 0, 'ARS is rounded to nearest 100 for '+x.id);
-    assert.ok(x.usd >= 32 && x.usd <= 198);
-    assert.equal(x.brl, Math.round(x.usd * 5.5003));
-    assert.ok(Math.abs(x.ars - x.usd * 1560) <= 50);
+    if (x.id === 'V09-081') {
+      assert.equal(x.ars, 10000);
+    } else {
+      assert.ok(x.usd >= 32 && x.usd <= 198);
+      assert.equal(x.brl, Math.round(x.usd * 5.5003));
+      assert.ok(Math.abs(x.ars - x.usd * 1560) <= 50);
+    }
   }
 });

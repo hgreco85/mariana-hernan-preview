@@ -117,6 +117,23 @@ function doPost(e){
       const r = updateDescriptions(data.rows || []);
       return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
     }
+    if(type === 'publishExperience'){
+      const expId = data.experienceId || '';
+      const photoUrl = data.photoUrl || '';
+      const sh = catalogSheet();
+      const cdata = sh.getDataRange().getValues();
+      let found = false;
+      for(let i=1; i<cdata.length; i++){
+        if(String(cdata[i][0]) === expId){
+          sh.getRange(i+1, 12).setValue('Publicada');
+          sh.getRange(i+1, 13).setValue('Disponible');
+          if(photoUrl) sh.getRange(i+1, 16).setValue(photoUrl);
+          found = true;
+          break;
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, found: found })).setMimeType(ContentService.MimeType.JSON);
+    }
     if(type === 'fillPhotos'){
       fillPhotoColumn();
       return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
