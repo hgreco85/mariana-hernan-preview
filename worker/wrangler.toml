@@ -10,7 +10,7 @@ MP_API_MODE = "orders"
 # Set to 'true' only when authorized for live payments; default 'false' (sandbox/staging)
 LIVE_MODE = "false"
 # Return URL after Mercado Pago checkout
-APP_URL = "https://regalos.hgstack.com/"
+APP_URL = "https://marianayhernan.web.app/"
 # Used as notification_url for payment Orders / Webhooks
 WORKER_WEBHOOK_URL = "https://mp-webhook.hgreco85.workers.dev"
 

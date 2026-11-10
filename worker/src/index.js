@@ -219,7 +219,6 @@ export default {
           type: 'travel'
         }]
       };
-      if (notificationUrl) ordersPayload.notification_url = notificationUrl;
 
       let resp = await fetch('https://api.mercadopago.com/v1/orders', {
         method: 'POST',
