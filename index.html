@@ -136,13 +136,17 @@ function giftExperience(id){
 
   const t0=Date.now();
   window.__checkoutMetrics={experienceId:id,startedAt:t0,reserveMs:0,createOrderMs:0,totalMs:0};
+  // 15s is a progress reminder, not a cancellation: the Apps Script/MP
+  // request can still be running. Never enable a second checkout while it is.
   let timedOut=false;
   const timer=setTimeout(function(){
-    timedOut=true;
-    isCheckingOut=false;
-    if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;}
-    if(notice) notice.style.display='none';
-    alert(lang==='pt' ? 'O servidor demorou para responder. Por favor, tente novamente.' : 'El servidor tardó en responder. Por favor, intentá nuevamente.');
+    if(btn){btn.disabled=true;btn.textContent=i18n[lang].step2;}
+    if(notice){
+      notice.style.display='block';
+      notice.textContent=lang==='pt'
+        ? 'O processamento está demorando mais do que o normal. Não tente pagar novamente; estamos aguardando a resposta.'
+        : 'Está tardando más de lo habitual. No vuelvas a intentar pagar; seguimos esperando la respuesta.';
+    }
   }, 15000);
 
   function proceedToCreateOrder(orderId, isRetry){
