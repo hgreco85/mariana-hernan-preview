@@ -138,7 +138,6 @@ function giftExperience(id){
   window.__checkoutMetrics={experienceId:id,startedAt:t0,reserveMs:0,createOrderMs:0,totalMs:0};
   // 15s is a progress reminder, not a cancellation: the Apps Script/MP
   // request can still be running. Never enable a second checkout while it is.
-  let timedOut=false;
   const timer=setTimeout(function(){
     if(btn){btn.disabled=true;btn.textContent=i18n[lang].step2;}
     if(notice){
@@ -150,7 +149,6 @@ function giftExperience(id){
   }, 15000);
 
   function proceedToCreateOrder(orderId, isRetry){
-    if(timedOut) return;
     const t1=Date.now();
     if(btn) btn.textContent=i18n[lang].step2;
     fetch(WORKER_URL+'/api/create-order', {
@@ -160,8 +158,7 @@ function giftExperience(id){
     })
     .then(r=>r.json())
     .then(wr=>{
-      if(timedOut) return;
-      const t2=Date.now();
+        const t2=Date.now();
       window.__checkoutMetrics.createOrderMs=t2-t1;
       window.__checkoutMetrics.totalMs=t2-t0;
       // Persist anonymous phase timings for diagnosis after navigating away to Mercado Pago.
@@ -198,8 +195,7 @@ function giftExperience(id){
       }
     })
     .catch(err=>{
-      if(timedOut) return;
-      isCheckingOut=false;
+        isCheckingOut=false;
       clearTimeout(timer);
       alert(lang==='pt' ? 'Erro ao conectar com o Mercado Pago. Você pode tentar novamente sem duplicar a reserva.' : 'Error al conectar con Mercado Pago. Podés intentarlo nuevamente sin duplicar tu reserva.');
       if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;}
@@ -210,8 +206,7 @@ function giftExperience(id){
   function doFreshReserve(){
     const tr0=Date.now();
     api.reserveExperience(id, function(res){
-      if(timedOut) return;
-      window.__checkoutMetrics.reserveMs=Date.now()-tr0;
+        window.__checkoutMetrics.reserveMs=Date.now()-tr0;
       if(res && res.orderId){
         try{sessionStorage.setItem('pendingOrder_'+id, JSON.stringify({orderId:res.orderId,ts:Date.now()}));}catch(e){}
         proceedToCreateOrder(res.orderId, false);
@@ -223,8 +218,7 @@ function giftExperience(id){
         if(notice) notice.style.display='none';
       }
     }, function(err){
-      if(timedOut) return;
-      isCheckingOut=false;
+        isCheckingOut=false;
       clearTimeout(timer);
       alert(err && err.message ? err.message : (lang==='pt' ? 'Esta experiência não está disponível.' : 'Esta experiencia no está disponible.'));
       if(btn){btn.disabled=false;btn.textContent=i18n[lang].giftBtn;}
