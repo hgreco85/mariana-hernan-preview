@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const source=fs.readFileSync(path.join(root,'Code.js'),'utf8');
-const match=source.match(/function reserveExperience\(experienceId\)\{[\s\S]*?\n\}\n(?=\nfunction getOrderPublic)/);
+const match=source.match(/function reserveExperience\(experienceId\)\{[\s\S]*?\r?\n\}\r?\n(?=\r?\nfunction getOrderPublic)/);
 assert.ok(match,'reserveExperience function is present');
 
 function run({status='Disponible',amount=5000,ops=[],releaseTarget=false}={}){
