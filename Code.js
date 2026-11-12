@@ -228,23 +228,31 @@ function getCatalog(){
 function reserveExperience(experienceId){
   const lock=LockService.getScriptLock(); lock.waitLock(20000);
   try {
-    releaseExpiredReservationsLocked();
-    const sh=catalogSheet(); const data=sh.getDataRange().getValues();
+    // Fast path: available gifts need one catalog read and one operations read.
+    // Avoid a global expiration scan (two extra full-sheet reads) on every checkout.
+    // The public catalog still performs global cleanup, and a held target is reconciled below.
+    const sh=catalogSheet(); let data=sh.getDataRange().getValues();
     let idx=-1;
     for(let i=1;i<data.length;i++){ if(String(data[i][0])===String(experienceId)){ idx=i; break; } }
     if(idx<0) throw new Error('Experiencia no encontrada');
-    const row=data[idx];
+    let row=data[idx];
+    let status=String(row[12]||'Disponible');
+    if(status==='Reservada temporalmente' || status==='Pago pendiente'){
+      // Preserve the prior expired-reservation behavior for this exact gift.
+      releaseExpiredReservationsLocked();
+      data=sh.getDataRange().getValues();
+      row=data[idx];
+      status=String(row[12]||'Disponible');
+    }
     // Fail closed even when a legacy reservation expired before the external-Order TTL guard was deployed.
     // A still-unsettled MP Order must be reconciled with Mercado Pago before allowing a second checkout.
     const priorOps=opsSheet().getDataRange().getValues();
     const activeExternalOrder=priorOps.some(r=>String(r[1])===String(experienceId) && unsettledPaymentOrder(r));
     if(activeExternalOrder) throw new Error('Existe una orden de Mercado Pago pendiente de conciliación para esta experiencia.');
-    const status=String(row[12]||'Disponible');
     if(status!=='Disponible') throw new Error('Esta experiencia no está disponible.');
     const usd=Number(row[8])||0;
     const arsStored=Number(row[9])||0;
-    const rate=getFxRate('ARS_PER_USD',1560);
-    const amount=arsStored>0 ? arsStored : Math.round(usd*rate*100)/100;
+    const amount=arsStored>0 ? arsStored : Math.round(usd*getFxRate('ARS_PER_USD',1560)*100)/100;
     const orderId='ORD-'+experienceId+'-'+Date.now();
     const expiry=new Date(Date.now() + (Number(PropertiesService.getScriptProperties().getProperty('RESERVATION_MINUTES'))||15)*60*1000);
     sh.getRange(idx+1,13).setValue('Reservada temporalmente');
