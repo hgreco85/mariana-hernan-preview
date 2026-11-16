@@ -1,0 +1,22 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "Code.js",
+      "appsscript.json",
+      ".clasp.json",
+      "*.md",
+      "preview.html"
+    ],
+    "redirects": [
+      {
+        "source": "/rsvp/:token",
+        "destination": "https://script.google.com/macros/s/AKfycbyK07SdGzPosMt72sCCmfr9K4wtof_TnsAjCsblhqjRmpo3jfJBeulI4dc7otZx6jFj/exec?t=:token",
+        "type": 302
+      }
+    ]
+  }
+}
