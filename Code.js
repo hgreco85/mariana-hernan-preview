@@ -212,10 +212,26 @@ function releaseExpiredReservationsLocked(){
   }
 }
 
+// Public read path. Fast path: open the spreadsheet ONCE, read the catalog ONCE and take the script lock only when a
+// temporary hold actually looks expired (releaseExpiredReservations keeps the full unsettled-payment guard unchanged).
+function catalogHasExpiredHold(rows, now){
+  for(let i=1;i<rows.length;i++){
+    const status=String(rows[i][12]||'');
+    if(status!=='Reservada temporalmente' && status!=='Pago pendiente') continue;
+    const expiry=rows[i][19]; const expDate=expiry?new Date(expiry):null;
+    if(!expDate || expDate<=now) return true;
+  }
+  return false;
+}
 function getCatalog(){
-  ensureCatalogColumns(catalogSheet());
-  releaseExpiredReservations();
-  const sh=catalogSheet(); const rows=sh.getDataRange().getValues(); rows.shift();
+  const sh=catalogSheet();
+  ensureCatalogColumns(sh);
+  let rows=sh.getDataRange().getValues();
+  if(catalogHasExpiredHold(rows,new Date())){
+    releaseExpiredReservations();
+    rows=catalogSheet().getDataRange().getValues();
+  }
+  rows.shift();
   return rows.filter(r=>r[0]&&String(r[11]||'')!=='Archivada'&&String(r[12]||'')!=='No mostrar').map(r=>({
     id:String(r[0]), city:String(r[1]), country:String(r[2]), category:String(r[3]), title:String(r[4]),
     titlePt:String(r[5]||''), description:String(r[6]), descriptionPt:String(r[7]||''),
