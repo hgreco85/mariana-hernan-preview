@@ -48,12 +48,18 @@ ${gifts}
 Um beijo,
 Mariana & Hernán`;
 
-  const target = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(phone) + '&text=' + encodeURIComponent(message);
+  const encoded = encodeURIComponent(message);
+  const appTarget = 'whatsapp://send?phone=' + encodeURIComponent(phone) + '&text=' + encoded;
+  const webTarget = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(phone) + '&text=' + encoded;
+
   const fallback = document.getElementById('fallback');
-  fallback.href = target;
+  fallback.href = webTarget;
   fallback.hidden = false;
 
-  location.replace(target);
+  // Mobile-first: open the installed WhatsApp app directly. This avoids
+  // intermediary HTTP redirects that can corrupt 4-byte emoji characters.
+  // If the custom scheme is not handled, keep a visible HTTPS fallback.
+  location.href = appTarget;
 })();
 </script>
 </body>
