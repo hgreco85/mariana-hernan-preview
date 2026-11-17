@@ -23,7 +23,7 @@
       },
       {
         "source": "/",
-        "destination": "https://regalos.ghstack.com",
+        "destination": "https://regalos.hgstack.com",
         "type": 302
       }
     ],
