@@ -9,10 +9,10 @@ const html = readFileSync(file, 'utf8');
 
 test('gifted state comes from live canonical catalog after initial static snapshot', () => {
   assert.match(html, /function refreshGiftStatuses\(\)/);
-  assert.match(html, /fetch\(WORKER_URL\+'\/api\/catalog',\{cache:'no-store'\}\)/);
+  assert.match(html, /fetch\(WORKER_URL\+'\/api\/catalog',\{cache:'no-store',signal:/);
   assert.match(html, /function start\(rows\)[\s\S]*?refreshGiftStatuses\(\);\}/);
   assert.match(html, /if\(!r\.ok\)throw new Error\('catalog unavailable'\)/);
-  assert.match(html, /if\(!current\|\|typeof current\.status!=='string'\)return/);
+  assert.match(html, /if\(!current\|\|typeof current\.status!=='string'\|\|!current\.status\.trim\(\)\)return/);
 });
 
 test('live gifted status is refreshed on return from payment and page reactivation', () => {
