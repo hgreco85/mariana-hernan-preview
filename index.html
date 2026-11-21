@@ -38,10 +38,28 @@ const api = {
     if (window.google && google.script && google.script.run) {
       google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure).saveDedication(orderId, name, text);
     } else {
-      fetch(WORKER_URL + '/api/dedication', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: orderId, guestName: name, dedication: text }) })
-      .then(r => r.json())
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 18000);
+      fetch(WORKER_URL + '/api/dedication', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: orderId, guestName: name, dedication: text }),
+        signal: controller.signal
+      })
+      .then(async r => {
+        let response;
+        try { response = await r.json(); }
+        catch(e) { throw new Error('No pudimos verificar la respuesta del servidor. Tu pago no se repite.'); }
+        if(!r.ok || !response || response.ok !== true){
+          throw new Error((response && response.error) || 'No pudimos confirmar el mensaje. Tu pago no se repite.');
+        }
+        return response;
+      })
       .then(onSuccess)
-      .catch(onFailure);
+      .catch(e => onFailure(e && e.name === 'AbortError'
+        ? new Error('Se demoró la confirmación del mensaje. Tu pago no se repite; podés reintentar solo la dedicatoria.')
+        : e))
+      .finally(() => clearTimeout(timeout));
     }
   }
 };
@@ -285,7 +303,7 @@ function showPayOverlay(status, order){
     overlay.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#142235cb;padding:20px;z-index:20';
     document.body.appendChild(overlay);
   }
-  overlay.innerHTML='<div style="background:#fff;border-radius:20px;max-width:620px;width:100%;padding:28px;text-align:center"><h2 id="payTitle" style="font:normal 28px Georgia,serif;margin:0 0 12px;color:#112c4e">'+esc(i18n[lang].step4)+'</h2><p id="payStatus" style="color:#4a5d6d;line-height:1.6">'+esc(i18n[lang].confirming)+'</p><div id="dedBox" style="display:none;margin-top:18px;text-align:left"><h3>'+esc(i18n[lang].dedTitle)+'</h3><input id="dedName" placeholder="'+esc(i18n[lang].dedName)+'" style="width:100%;padding:10px;margin:6px 0;border:1px solid #d8d5cf;border-radius:9px"><textarea id="dedText" placeholder="'+esc(i18n[lang].dedPlaceholder)+'" style="width:100%;padding:10px;margin:6px 0;border:1px solid #d8d5cf;border-radius:9px;min-height:90px"></textarea><button class="cta" onclick="submitDedication(\''+esc(order||'')+'\')">'+esc(i18n[lang].dedSend)+'</button><p id="dedMsg" style="color:#1b405e;margin-top:8px"></p></div><button class="cta" style="margin-top:18px" onclick="closePayOverlay()">'+esc(i18n[lang].backBtn)+'</button></div>';
+  overlay.innerHTML='<div style="background:#fff;border-radius:20px;max-width:620px;width:100%;padding:28px;text-align:center"><h2 id="payTitle" style="font:normal 28px Georgia,serif;margin:0 0 12px;color:#112c4e">'+esc(i18n[lang].step4)+'</h2><p id="payStatus" style="color:#4a5d6d;line-height:1.6">'+esc(i18n[lang].confirming)+'</p><div id="dedBox" style="display:none;margin-top:18px;text-align:left"><h3>'+esc(i18n[lang].dedTitle)+'</h3><input id="dedName" placeholder="'+esc(i18n[lang].dedName)+'" style="width:100%;padding:10px;margin:6px 0;border:1px solid #d8d5cf;border-radius:9px"><textarea id="dedText" placeholder="'+esc(i18n[lang].dedPlaceholder)+'" style="width:100%;padding:10px;margin:6px 0;border:1px solid #d8d5cf;border-radius:9px;min-height:90px"></textarea><button class="cta" id="dedSendBtn" onclick="submitDedication(\''+esc(order||'')+'\')">'+esc(i18n[lang].dedSend)+'</button><p id="dedMsg" role="status" aria-live="polite" style="color:#1b405e;margin-top:8px"></p></div><button class="cta" style="margin-top:18px" onclick="closePayOverlay()">'+esc(i18n[lang].backBtn)+'</button></div>';
   overlay.style.display='flex';
   if(!order){
     const tEl=document.getElementById('payTitle');
@@ -345,12 +363,35 @@ function showPayOverlay(status, order){
 
 function closePayOverlay(){const o=document.getElementById('payOverlay'); if(o) o.style.display='none';refreshGiftStatuses();}
 function submitDedication(order){
-  const name=document.getElementById('dedName').value;
-  const text=document.getElementById('dedText').value;
-  api.saveDedication(order, name, text, function(res){
-    const m=document.getElementById('dedMsg'); if(m) m.textContent=i18n[lang].dedThanks;
+  const nameInput=document.getElementById('dedName');
+  const textInput=document.getElementById('dedText');
+  const btn=document.getElementById('dedSendBtn');
+  const message=document.getElementById('dedMsg');
+  if(!nameInput || !textInput || !btn || !message || btn.disabled) return;
+  btn.disabled=true;
+  btn.textContent=lang==='pt'?'Enviando…':'Enviando…';
+  message.textContent=lang==='pt'?'Guardando sua mensagem…':'Guardando tu mensaje…';
+  api.saveDedication(order, nameInput.value, textInput.value, function(res){
+    if(!res || res.ok !== true){
+      btn.disabled=false;
+      btn.textContent=i18n[lang].dedSend;
+      message.textContent=lang==='pt'
+        ? 'Não conseguimos confirmar a mensagem. Seu pagamento não será repetido. Tente reenviar só a mensagem.'
+        : 'No pudimos confirmar el mensaje. Tu pago no se repite. Podés intentar enviar solo la dedicatoria otra vez.';
+      return;
+    }
+    nameInput.disabled=true;
+    textInput.disabled=true;
+    btn.textContent=lang==='pt'?'Mensagem recebida ✓':'Mensaje recibido ✓';
+    message.textContent=i18n[lang].dedThanks+' '+(lang==='pt'
+      ? 'Seu pagamento já foi confirmado. Você pode voltar às experiências.'
+      : 'Tu pago ya está confirmado. Podés volver a las experiencias.');
   }, function(e){
-    const m=document.getElementById('dedMsg'); if(m) m.textContent=e&&e.message?e.message:'Error';
+    btn.disabled=false;
+    btn.textContent=i18n[lang].dedSend;
+    message.textContent=(e && e.message ? e.message : (lang==='pt'
+      ? 'Não conseguimos verificar a mensagem. Seu pagamento não será repetido.'
+      : 'No pudimos verificar el mensaje. Tu pago no se repite.'));
   });
 }
 
