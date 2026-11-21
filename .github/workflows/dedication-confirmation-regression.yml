@@ -1,0 +1,23 @@
+name: Wedding dedication confirmation regression
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'tests/dedication_confirmation_ux.test.mjs'
+      - '.github/workflows/dedication-confirmation-regression.yml'
+permissions:
+  contents: read
+jobs:
+  dedication-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Safe local UI and catalog regression tests (no production requests)
+        run: |
+          node --test tests/dedication_confirmation_ux.test.mjs tests/live_gift_status_refresh.test.mjs tests/checkout_redirect_performance.test.mjs tests/catalog_integrity.test.mjs tests/guest_reservation_copy_and_timings.test.mjs tests/idempotency_and_transitions.test.mjs
