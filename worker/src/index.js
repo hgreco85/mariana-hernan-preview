@@ -543,8 +543,17 @@ export default {
 
     // Reconcile expired reservations (safe, checks Mercado Pago first)
     if (url.pathname === '/api/reconcile-expired') {
+      // Manual reconciliation must not be anonymously triggerable. The scheduled
+      // Cloudflare cron remains the single automatic execution mechanism.
+      if (request.method !== 'POST') return corsResponse(JSON.stringify({error:'method_not_allowed'}),405);
+      let body;
+      try { body = await request.json(); } catch(e) { body = {}; }
+      if (!env.SHARED_SECRET || !body.secret ||
+          !constantTimeEqual(String(body.secret), String(env.SHARED_SECRET))) {
+        return corsResponse(JSON.stringify({error:'unauthorized'}),401);
+      }
       const res = await reconcileExpiredReservations(env);
-      return corsResponse(JSON.stringify(res), res.ok ? 200 : 500);
+      return corsResponse(JSON.stringify(res),res.ok ? 200 : 503);
     }
 
     // Public catalog proxy (read-only, no secret)
