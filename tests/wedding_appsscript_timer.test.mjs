@@ -145,3 +145,12 @@ test('no Apps Script lock can be held across the Worker round-trip',()=>{
   assert.equal(source.includes('LockService.getScriptLock()'),false);
   assert.equal(source.includes('ScriptApp.newTrigger(WEDDING_RECONCILE_HANDLER).timeBased().everyMinutes(5).create()'),true);
 });
+
+test('clasp allowlist includes exactly the new timer file without broadening other uploads',()=>{
+  const ignore = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../.claspignore'),'utf8');
+  const exceptions = ignore.split(/\r?\n/).filter(row=>row.startsWith('!'));
+  assert.ok(ignore.split(/\r?\n/)[0] === '**/**','deny all source by default');
+  assert.equal(exceptions.filter(row=>row==='!WeddingReconciliationTimer.gs').length,1);
+  assert.equal(exceptions.filter(row=>row.startsWith('!')).length,7);
+  assert.equal(exceptions.includes('!Code.js'),true);
+});
