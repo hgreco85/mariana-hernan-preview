@@ -169,6 +169,9 @@ function doPost(e){
         if(!id||!catalogEntry||!reconciliable.test(state)||terminal.test(state))continue;
         if(catalogEntry.status!=='Reservada temporalmente'&&catalogEntry.status!=='Pago pendiente')continue;
         if(row[7])continue; // never auto-release with a local MP payment ID
+        // A created/pending operation without MP ID may mean that its external
+        // Order was created but the acknowledgment failed. Never infer nonpayment.
+        if(!String(row[6]||'').trim() && state!=='Reservada' && state!=='Reservada temporalmente')continue;
         // Google Sheets getValues() returns a Date, even when column T is displayed as DATE.
         // Do not parse ambiguous DD/MM/YYYY display text or treat invalid dates as 1970.
         const rawExpiry=catalogEntry.expiry;
@@ -524,8 +527,9 @@ function reconcileSingleOrder(orderId,status,note,proof){
       if(proof.mpStatus!=='canceled'||proof.externalReference!==orderId){
         return {ok:false,error:'verified MP cancellation required'};
       }
-    }else if(proof.mpStatus!=='no_mp_order'){
-      return {ok:false,error:'no external order proof required'};
+    }else if(proof.mpStatus!=='no_mp_order'||
+              (current!=='Reservada'&&current!=='Reservada temporalmente')){
+      return {ok:false,error:'untracked external Order cannot be proven absent'};
     }
     const cat=catalogSheet(),data=cat.getDataRange().getValues();
     let ci=-1;for(let j=1;j<data.length;j++)if(String(data[j][0])===expId){ci=j;break;}
