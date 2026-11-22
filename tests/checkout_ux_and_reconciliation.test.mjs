@@ -181,7 +181,7 @@ test('reconcileExpiredReservations NEVER cancels or releases if MP order has pen
       return {
         ok: true,
         reservationMinutes: 15,
-        expiredOrders: [
+        expired: [
           {
             orderId: 'ORD-V09-081-9999',
             experienceId: 'V09-081',
