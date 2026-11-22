@@ -90,7 +90,7 @@ function doPost(e){
       return ContentService.createTextOutput(JSON.stringify(getAdminStats())).setMimeType(ContentService.MimeType.JSON);
     }
     if(type === 'reconcileOrder'){
-      const r = reconcileSingleOrder(data.orderId, data.status, data.note || '');
+      const r = reconcileSingleOrder(data.orderId, data.status, data.note || '', {mpOrderId:data.mpOrderId,mpStatus:data.mpStatus,externalReference:data.externalReference});
       return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
     }
     if(type === 'reconcileLegacy'){
@@ -146,26 +146,52 @@ function doPost(e){
       return ContentService.createTextOutput(JSON.stringify({ ok: true, key: key })).setMimeType(ContentService.MimeType.JSON);
     }
     if(type === 'getExpiredOrders'){
-      const ops = opsSheet().getDataRange().getValues();
-      const now = Date.now();
-      const resMins = Number(PropertiesService.getScriptProperties().getProperty('RESERVATION_MINUTES')) || 15;
-      const expired = [];
-      for(let i=1; i<ops.length; i++){
-        const st = String(ops[i][2]);
-        const mpOrderId = String(ops[i][6]||'');
-        const mpPaymentId = String(ops[i][7]||'');
-        const created = ops[i][3] ? new Date(ops[i][3]).getTime() : 0;
-        if((st === 'Reservada' || st === 'Reservada temporalmente') && !mpPaymentId && (now - created > resMins * 60 * 1000)){
-          expired.push({
-            orderId: String(ops[i][0]),
-            experienceId: String(ops[i][1]),
-            mpOrderId: mpOrderId,
-            createdDate: ops[i][3],
-            ageMinutes: Math.round((now - created) / 60000)
-          });
-        }
+      // Candidates only: this endpoint NEVER changes payment or reservation state.
+      // Mercado Pago reconciliation, and an atomic re-check in reconcileSingleOrder,
+      // are mandatory before any external Order can be released.
+      const ops=opsSheet().getDataRange().getValues();
+      const catalog=catalogSheet().getDataRange().getValues();
+      const now=Date.now();
+      const resMins=Number(PropertiesService.getScriptProperties().getProperty('RESERVATION_MINUTES'))||15;
+      const candidates=[];
+      const held={};
+      for(let j=1;j<catalog.length;j++){
+        const id=String(catalog[j][0]||'');
+        if(id) held[id]={status:String(catalog[j][12]||''),expiry:catalog[j][19]};
       }
-      return ContentService.createTextOutput(JSON.stringify({ ok: true, reservationMinutes: resMins, expired: expired })).setMimeType(ContentService.MimeType.JSON);
+      const terminal=/^(aprobado|regalada y cobrada|cancelado|cancelled|rejected|rechazado|refunded|reembolsado|charged_back|contracargo)$/i;
+      const reconciliable=/^(reservada|reservada temporalmente|created|action_required|pago pendiente|pendiente|pending|in_process|authorized|expirada \(no abonada\))$/i;
+      for(let i=1;i<ops.length;i++){
+        const row=ops[i];
+        const id=String(row[1]||'');
+        const state=String(row[2]||'').trim();
+        const catalogEntry=held[id];
+        if(!id||!catalogEntry||!reconciliable.test(state)||terminal.test(state))continue;
+        if(catalogEntry.status!=='Reservada temporalmente'&&catalogEntry.status!=='Pago pendiente')continue;
+        if(row[7])continue; // never auto-release with a local MP payment ID
+        // A created/pending operation without MP ID may mean that its external
+        // Order was created but the acknowledgment failed. Never infer nonpayment.
+        if(!String(row[6]||'').trim() && state!=='Reservada' && state!=='Reservada temporalmente')continue;
+        // Google Sheets getValues() returns a Date, even when column T is displayed as DATE.
+        // Do not parse ambiguous DD/MM/YYYY display text or treat invalid dates as 1970.
+        const rawExpiry=catalogEntry.expiry;
+        const expireAt=rawExpiry instanceof Date && !isNaN(rawExpiry.getTime()) ? rawExpiry.getTime() : NaN;
+        const created=row[3] instanceof Date && !isNaN(row[3].getTime()) ? row[3].getTime() : NaN;
+        const deadline=Number.isFinite(expireAt)?expireAt:(rawExpiry?NaN:(Number.isFinite(created)?created+resMins*60000:NaN));
+        if(!Number.isFinite(deadline)||deadline>now)continue;
+        // Never reconcile when another order for the experience is approved or unsettled.
+        const conflicted=ops.some((o,j)=>j>0&&j!==i&&String(o[1]||'')===id&&unsettledPaymentOrder(o));
+        if(conflicted)continue;
+        candidates.push({
+          orderId:String(row[0]),
+          experienceId:id,
+          mpOrderId:String(row[6]||'').trim(),
+          createdAt:Number.isFinite(created)?new Date(created).toISOString():'',
+          expiresAt:new Date(deadline).toISOString(),
+          localStatus:state
+        });
+      }
+      return ContentService.createTextOutput(JSON.stringify({ok:true,reservationMinutes:resMins,expired:candidates})).setMimeType(ContentService.MimeType.JSON);
     }
 
     return ContentService.createTextOutput(JSON.stringify({ error: 'unknown type' })).setMimeType(ContentService.MimeType.JSON);
@@ -307,6 +333,11 @@ function applyPaymentTransitionLocked(orderId, mpStatus, mpPaymentId){
 
   // Out-of-order protection: an already approved order cannot be downgraded to pending
   if(currentStatus==='Aprobado' && (low==='pending'||low==='in_process'||low==='authorized')){
+    return;
+  }
+  // Approved payments are never reversed by late or replayed rejected, cancelled,
+  // or unknown notifications. Only explicit refund/chargeback may change state.
+  if(currentStatus==='Aprobado' && !['approved','refunded','charged_back'].includes(low)){
     return;
   }
 
@@ -474,29 +505,66 @@ function reconcileLegacyOrders(){
   return { ok: true, reconciled: count };
 }
 
-function reconcileSingleOrder(orderId, status, note){
-  const sh=opsSheet(); const data=sh.getDataRange().getValues();
-  const i=findOpRow(data, orderId);
-  if(i<0) return { error: 'not found' };
-  if(status) sh.getRange(i+1,3).setValue(status);
-  if(note) sh.getRange(i+1,13).setValue(note);
-  const expId = String(data[i][1]||'');
-  const mpPaymentId = String(data[i][7]||'');
-  const low = String(status||'').toLowerCase();
-  if(expId && !mpPaymentId && (low.includes('cancel') || low.includes('expir') || low.includes('rechaz'))){
-    const csh = catalogSheet();
-    const cdata = csh.getDataRange().getValues();
-    for(let j=1; j<cdata.length; j++){
-      if(String(cdata[j][0]) === expId){
-        if(String(cdata[j][12]) !== 'Regalada y cobrada'){
-          csh.getRange(j+1, 13).setValue('Disponible');
-          csh.getRange(j+1, 20).clearContent();
-        }
-        break;
-      }
+function reconcileSingleOrder(orderId,status,note,proof){
+  const lock=LockService.getScriptLock();
+  lock.waitLock(20000);
+  try{
+    const ops=opsSheet(),opData=ops.getDataRange().getValues(),i=findOpRow(opData,orderId);
+    if(i<0)return {ok:false,error:'not found'};
+    const row=opData[i],expId=String(row[1]||''),current=String(row[2]||'');
+    const mpOrderId=String(row[6]||'').trim(),paymentId=String(row[7]||'').trim();
+    if(!expId)return {ok:false,error:'missing experience'};
+    if(status!=='Expirada (no abonada)'){
+      // Legacy manual admin reconciliation preserves historical behavior but cannot
+      // free an external MP Order through a status string without payment proof.
+      if(mpOrderId||paymentId||current==='Aprobado')return {ok:false,error:'verified reconciliation required'};
+      if(status)ops.getRange(i+1,3).setValue(status);
+      if(note)ops.getRange(i+1,13).setValue(note);
+      return {ok:true,orderId:orderId,status:status,released:false};
     }
-  }
-  return { ok: true, orderId: orderId, status: status };
+    proof=proof||{};
+    if(paymentId||current==='Aprobado'||current==='Regalada y cobrada'||current==='Pendiente'&&proof.mpStatus!=='canceled'){
+      return {ok:false,error:'payment protection: operation is not releasable'};
+    }
+    const actualMpId=String(proof.mpOrderId||'').trim();
+    if(actualMpId!==mpOrderId)return {ok:false,error:'MP Order ID changed'};
+    if(mpOrderId){
+      if(proof.mpStatus!=='canceled'||proof.externalReference!==orderId){
+        return {ok:false,error:'verified MP cancellation required'};
+      }
+    }else if(proof.mpStatus!=='no_mp_order'||
+              (current!=='Reservada'&&current!=='Reservada temporalmente')){
+      return {ok:false,error:'untracked external Order cannot be proven absent'};
+    }
+    const cat=catalogSheet(),data=cat.getDataRange().getValues();
+    let ci=-1;for(let j=1;j<data.length;j++)if(String(data[j][0])===expId){ci=j;break;}
+    if(ci<0)return {ok:false,error:'catalog experience missing'};
+    const catStatus=String(data[ci][12]||'');
+    if(catStatus==='Regalada y cobrada')return {ok:false,error:'already gifted'};
+    if(catStatus==='Disponible'&&current==='Expirada (no abonada)')return {ok:true,released:false,alreadyReleased:true};
+    if(catStatus!=='Reservada temporalmente'&&catStatus!=='Pago pendiente'){
+      return {ok:false,error:'catalog reservation changed'};
+    }
+    const rawExpiry=data[ci][19];
+    const deadline=rawExpiry instanceof Date && !isNaN(rawExpiry.getTime())?rawExpiry.getTime():NaN;
+    const created=row[3] instanceof Date && !isNaN(row[3].getTime())?row[3].getTime():NaN;
+    const minutes=Number(PropertiesService.getScriptProperties().getProperty('RESERVATION_MINUTES'))||15;
+    const effectiveDeadline=Number.isFinite(deadline)?deadline:(rawExpiry?NaN:(Number.isFinite(created)?created+minutes*60000:NaN));
+    if(!Number.isFinite(effectiveDeadline)||effectiveDeadline>Date.now())return {ok:false,error:'deadline not proven expired'};
+    // The Worker may have verified MP seconds ago. Refuse to free an operation
+    // if a webhook has already written an approved, pending, or newer payment.
+    const otherActive=opData.some((r,j)=>j>0&&j!==i&&String(r[1]||'')===expId&&unsettledPaymentOrder(r));
+    if(otherActive)return {ok:false,error:'another order holds this experience'};
+    // Mark first. If writing the catalog fails, the next cron can retry the
+    // already-expired operation while the reservation is still held.
+    if(current!=='Expirada (no abonada)')ops.getRange(i+1,3).setValue('Expirada (no abonada)');
+    const previousAudit=String(row[12]||'');
+    const audit='P0 2026-11-22 | '+(mpOrderId?'MP canceled '+mpOrderId:'no MP Order')+' | '+String(note||'');
+    ops.getRange(i+1,13).setValue((previousAudit?previousAudit+'\n':'')+audit.slice(0,450));
+    cat.getRange(ci+1,13).setValue('Disponible');
+    cat.getRange(ci+1,20).clearContent();
+    return {ok:true,released:true,orderId:orderId,status:'Expirada (no abonada)'};
+  }finally{lock.releaseLock();}
 }
 
 function getAdminStats(){

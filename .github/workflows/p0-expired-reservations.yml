@@ -1,0 +1,32 @@
+name: P0 expired reservation safe regression
+on:
+  pull_request:
+    paths:
+      - 'Code.js'
+      - 'worker/src/index.js'
+      - 'tests/p0_expired_*.test.mjs'
+      - 'tests/checkout_ux_and_reconciliation.test.mjs'
+      - '.github/workflows/p0-expired-reservations.yml'
+permissions:
+  contents: read
+jobs:
+  safe-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Offline mock-only tests; PAID_RUN_FREEZE preserved
+        run: |
+          node --test \
+            tests/p0_expired_worker.test.mjs \
+            tests/p0_expired_appsscript.test.mjs \
+            tests/checkout_ux_and_reconciliation.test.mjs \
+            tests/idempotency_and_transitions.test.mjs \
+            tests/mp-stale-order-before-reserve.test.mjs \
+            tests/mp-unsettled-reservation-guard.test.mjs \
+            tests/live_gift_status_refresh.test.mjs

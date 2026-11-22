@@ -307,125 +307,124 @@ async function appsScriptPost(env, payload) {
 }
 
 // Function to check and reconcile expired reservations
+// Reconcile only confirmed terminal external Orders. A missing local MP Payment ID
+// is NOT proof of non-payment: Mercado Pago is authoritative for external Orders.
 export async function reconcileExpiredReservations(env, deps = {}) {
   const fetchImpl = deps.fetchImpl || fetch;
   const appsScriptPostImpl = deps.postToAppsScriptImpl || deps.appsScriptPostImpl || appsScriptPost;
   const token = env && env.MP_ACCESS_TOKEN;
-  if (!token || token.startsWith('REPLACE_') || token === 'REPLACE_WITH_MP_ACCESS_TOKEN') {
+  if (!token || token.startsWith('REPLACE_')) {
     return { ok: false, reason: 'no_token', checked: 0, results: [] };
   }
 
-  const info = await appsScriptPostImpl(env, { type: 'getExpiredOrders', action: 'getExpiredOrders' });
-  const data = (info && info.data) ? info.data : (info || {});
-  const resMins = (data && data.reservationMinutes) || 15;
-  const expiredRaw = (data && (data.expiredOrders || data.expired)) || [];
-  const expired = Array.isArray(expiredRaw) ? expiredRaw : [];
-  if (expired.length === 0) {
-    return { ok: true, checked: 0, count: 0, results: [], reservationMinutes: resMins };
+  const query = await appsScriptPostImpl(env, { type: 'getExpiredOrders', action: 'getExpiredOrders' });
+  const data = (query && query.data) || query || {};
+  if ((query && typeof query.status === 'number' && query.status !== 200) || data.ok !== true || !Array.isArray(data.expired)) {
+    return { ok: false, reason: 'expired_candidates_unavailable', checked: 0, results: [] };
   }
 
   const results = [];
   let reconciled = 0;
-  for (const item of expired) {
-    const orderId = item.orderId;
-    const mpOrderId = item.mpOrderId || item.mpPreferenceId || '';
-    const result = { orderId, canceledInMp: false, mpStatus: '', preserved: false };
+  const activePayment = s => {
+    const value = String(s || '').toLowerCase();
+    // Terminal failure is the only safe non-active payment status.
+    return !['rejected','cancelled','canceled','failed'].includes(value);
+  };
+  const inspect = async (mpOrderId, orderId) => {
+    const response = await fetchImpl('https://api.mercadopago.com/v1/orders/' + encodeURIComponent(mpOrderId), {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    if (response.status !== 200) return { ok: false, reason: 'mp_http_' + response.status };
+    const mp = await response.json();
+    if (!mp || String(mp.id || '') !== String(mpOrderId) ||
+        String(mp.external_reference || '') !== String(orderId)) {
+      return { ok: false, reason: 'mp_order_identity_mismatch' };
+    }
+    const transactions = mp.transactions || {};
+    const payments = transactions.payments === undefined ? [] : transactions.payments;
+    if (!Array.isArray(payments)) return { ok: false, reason: 'mp_payments_malformed' };
+    if (payments.some(p => activePayment(p && p.status))) return { ok: false, reason: 'mp_payment_pending_or_approved' };
+    const status = String(mp.status || '').toLowerCase();
+    if (['processed','processing','at_terminal','authorized','pending','in_process'].includes(status)) {
+      return { ok: false, reason: 'mp_order_in_progress' };
+    }
+    if (['waiting_capture','waiting_retry'].includes(String(mp.status_detail || '').toLowerCase())) {
+      return { ok: false, reason: 'mp_authorized_or_retrying' };
+    }
+    return { ok: true, mp, status };
+  };
 
-    if (mpOrderId) {
-      try {
-        const mpResp = await fetchImpl('https://api.mercadopago.com/v1/orders/' + encodeURIComponent(mpOrderId), {
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-        if (mpResp.status === 200) {
-          const mpOrder = await mpResp.json();
-          const payments = (mpOrder.transactions && Array.isArray(mpOrder.transactions.payments))
-            ? mpOrder.transactions.payments
-            : [];
-          const hasActivePayment = payments.some(p => {
-            const s = String(p.status || '').toLowerCase();
-            return s === 'approved' || s === 'pending' || s === 'in_process' || s === 'authorized';
+  for (const item of data.expired) {
+    const orderId = String(item && item.orderId || '');
+    const mpOrderId = String(item && (item.mpOrderId || item.mpPreferenceId) || '');
+    const result = { orderId, mpOrderId: mpOrderId || undefined, released: false, preserved: true };
+    if (!orderId || !item.experienceId) {
+      result.reason = 'invalid_candidate';
+      results.push(result);
+      continue;
+    }
+    try {
+      let proofStatus = 'no_mp_order';
+      if (mpOrderId) {
+        let observed = await inspect(mpOrderId, orderId);
+        if (!observed.ok) { result.reason = observed.reason; results.push(result); continue; }
+        if (observed.status === 'created' || observed.status === 'action_required') {
+          const cancelResponse = await fetchImpl('https://api.mercadopago.com/v1/orders/' + encodeURIComponent(mpOrderId) + '/cancel', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer ' + token, 'X-Idempotency-Key': orderId + '-cancel-expired' }
           });
-          const paymentStatus = payments.length ? String(payments[payments.length - 1].status || '').toLowerCase() : '';
-
-          if (hasActivePayment) {
-            result.preserved = true;
-            result.paymentStatus = paymentStatus || 'pending';
-            result.mpStatus = paymentStatus || String(mpOrder.status || '').toLowerCase();
+          if (cancelResponse.status !== 200) {
+            result.reason = 'mp_cancel_http_' + cancelResponse.status;
             results.push(result);
             continue;
           }
-
-          const mpStatus = String(mpOrder.status || '').toLowerCase();
-          if (mpStatus === 'created' || mpStatus === 'action_required') {
-            const cancelResp = await fetchImpl('https://api.mercadopago.com/v1/orders/' + encodeURIComponent(mpOrderId) + '/cancel', {
-              method: 'POST',
-              headers: {
-                'Authorization': 'Bearer ' + token,
-                'X-Idempotency-Key': orderId + '-cancel-expired'
-              }
-            });
-            let cancelJson = {};
-            try { cancelJson = await cancelResp.json(); } catch (e) {}
-            result.canceledInMp = cancelResp.status >= 200 && cancelResp.status < 300;
-            result.mpStatus = cancelJson && cancelJson.status ? String(cancelJson.status).toLowerCase() : 'canceled';
-          } else {
-            result.mpStatus = mpStatus || 'canceled';
-            result.canceledInMp = false;
+          const canceled = await cancelResponse.json();
+          if (!canceled || String(canceled.status || '').toLowerCase() !== 'canceled') {
+            result.reason = 'mp_cancel_unconfirmed';
+            results.push(result);
+            continue;
           }
-
-          await appsScriptPostImpl(env, {
-            type: 'reconcileOrder',
-            action: 'reconcileOrder',
-            orderId: orderId,
-            status: 'Expirada (no abonada)',
-            mpStatus: 'cancelled',
-            note: 'Liberado: tiempo límite excedido sin pago acreditado'
-          });
-          reconciled++;
-        } else if (mpResp.status === 404) {
-          await appsScriptPostImpl(env, {
-            type: 'reconcileOrder',
-            action: 'reconcileOrder',
-            orderId: orderId,
-            status: 'Expirada (no abonada)',
-            mpStatus: 'cancelled',
-            note: 'Liberado: orden no encontrada en Mercado Pago'
-          });
-          result.mpStatus = 'canceled';
-          result.canceledInMp = false;
-          reconciled++;
+          // Verify on a new GET after cancellation. No release on network or
+          // eventual-consistency errors; the same cron safely retries later.
+          observed = await inspect(mpOrderId, orderId);
+          if (!observed.ok) { result.reason = observed.reason; results.push(result); continue; }
         }
-      } catch (e) {
-        // leave preserved? On error, do not release
-        result.preserved = true;
-        result.mpStatus = 'error';
+        if (observed.status !== 'canceled') {
+          result.reason = 'mp_not_terminal_' + observed.status;
+          results.push(result);
+          continue;
+        }
+        proofStatus = 'canceled';
       }
-    } else {
-      await appsScriptPostImpl(env, {
+      // Apps Script performs a second atomic check under LockService: current
+      // status, all competing orders, expiration and MP identity must match.
+      const ack = await appsScriptPostImpl(env, {
         type: 'reconcileOrder',
         action: 'reconcileOrder',
-        orderId: orderId,
+        orderId,
+        mpOrderId,
+        mpStatus: proofStatus,
+        externalReference: orderId,
         status: 'Expirada (no abonada)',
-        mpStatus: 'cancelled',
-        note: 'Liberado: reserva abandonada antes de checkout'
+        note: proofStatus === 'canceled' ? 'MP canceled verified by readback' : 'No MP Order after expired internal reservation'
       });
-      result.mpStatus = 'canceled';
-      result.canceledInMp = false;
-      reconciled++;
+      const saved = (ack && ack.data) || ack || {};
+      if ((ack && typeof ack.status === 'number' && ack.status !== 200) || saved.ok !== true) {
+        result.reason = (saved.error && String(saved.error)) || 'apps_script_reconcile_refused';
+      } else {
+        result.preserved = false;
+        result.released = saved.released === true;
+        result.alreadyReleased = saved.alreadyReleased === true;
+        if (result.released) reconciled++;
+      }
+    } catch (error) {
+      result.reason = 'reconcile_exception';
+      // Fail closed; full error details belong in Worker logs, not API response.
+      console.error('expired-reconcile-failed', orderId, String(error && error.message || error));
     }
-
-    if (!result.preserved && !result.mpStatus) result.mpStatus = 'canceled';
     results.push(result);
   }
-
-  return {
-    ok: true,
-    checked: expired.length,
-    count: reconciled,
-    reconciled,
-    results,
-    reservationMinutes: resMins
-  };
+  return { ok: true, checked: data.expired.length, reconciled, results, reservationMinutes: data.reservationMinutes || 15 };
 }
 
 export default {
@@ -544,8 +543,17 @@ export default {
 
     // Reconcile expired reservations (safe, checks Mercado Pago first)
     if (url.pathname === '/api/reconcile-expired') {
+      // Manual reconciliation must not be anonymously triggerable. The scheduled
+      // Cloudflare cron remains the single automatic execution mechanism.
+      if (request.method !== 'POST') return corsResponse(JSON.stringify({error:'method_not_allowed'}),405);
+      let body;
+      try { body = await request.json(); } catch(e) { body = {}; }
+      if (!env.SHARED_SECRET || !body.secret ||
+          !constantTimeEqual(String(body.secret), String(env.SHARED_SECRET))) {
+        return corsResponse(JSON.stringify({error:'unauthorized'}),401);
+      }
       const res = await reconcileExpiredReservations(env);
-      return corsResponse(JSON.stringify(res), res.ok ? 200 : 500);
+      return corsResponse(JSON.stringify(res),res.ok ? 200 : 503);
     }
 
     // Public catalog proxy (read-only, no secret)
@@ -950,6 +958,12 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(reconcileExpiredReservations(env));
+    ctx.waitUntil(reconcileExpiredReservations(env)
+      .then(r => console.log('expired-reservation-cron', JSON.stringify({
+        ok:r.ok, checked:r.checked, reconciled:r.reconciled || 0,
+        preserved:r.results ? r.results.filter(x => x.preserved).length : 0,
+        reason:r.reason || ''
+      })))
+      .catch(e => console.error('expired-reservation-cron-error', String(e && e.message || e))));
   }
 };
