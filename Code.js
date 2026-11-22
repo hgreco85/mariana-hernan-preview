@@ -549,8 +549,9 @@ function reconcileSingleOrder(orderId,status,note,proof){
     // Mark first. If writing the catalog fails, the next cron can retry the
     // already-expired operation while the reservation is still held.
     if(current!=='Expirada (no abonada)')ops.getRange(i+1,3).setValue('Expirada (no abonada)');
+    const previousAudit=String(row[12]||'');
     const audit='P0 2026-11-22 | '+(mpOrderId?'MP canceled '+mpOrderId:'no MP Order')+' | '+String(note||'');
-    ops.getRange(i+1,13).setValue(audit.slice(0,450));
+    ops.getRange(i+1,13).setValue((previousAudit?previousAudit+'\n':'')+audit.slice(0,450));
     cat.getRange(ci+1,13).setValue('Disponible');
     cat.getRange(ci+1,20).clearContent();
     return {ok:true,released:true,orderId:orderId,status:'Expirada (no abonada)'};
