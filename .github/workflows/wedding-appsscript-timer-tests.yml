@@ -1,0 +1,22 @@
+name: Wedding Apps Script timer (offline safety tests)
+on:
+  pull_request:
+    paths:
+      - 'WeddingReconciliationTimer.gs'
+      - 'tests/wedding_appsscript_timer.test.mjs'
+      - '.github/workflows/wedding-appsscript-timer-tests.yml'
+permissions:
+  contents: read
+jobs:
+  mock-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test installer, idempotency, Worker HTTP and credential safety (no live requests)
+        run: node --test tests/wedding_appsscript_timer.test.mjs
