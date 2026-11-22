@@ -68,6 +68,7 @@ test('createCheckoutPreference sends full experience title, description, externa
 test('reconcileExpiredReservations cancels abandoned created MP order and releases reservation', async () => {
   const mpCalls = [];
   const gasCalls = [];
+  let canceled = false;
 
   const mockFetch = async (url, options = {}) => {
     mpCalls.push({ url, method: options.method || 'GET', headers: options.headers || {} });
@@ -75,7 +76,7 @@ test('reconcileExpiredReservations cancels abandoned created MP order and releas
       return new Response(
         JSON.stringify({
           id: 'ORD01ABANDONED123',
-          status: 'created',
+          status: canceled ? 'canceled' : 'created',
           external_reference: 'ORD-V09-081-1794342810215',
           transactions: {},
         }),
@@ -83,6 +84,7 @@ test('reconcileExpiredReservations cancels abandoned created MP order and releas
       );
     }
     if (url.endsWith('/v1/orders/ORD01ABANDONED123/cancel')) {
+      canceled = true;
       return new Response(
         JSON.stringify({
           id: 'ORD01ABANDONED123',
@@ -100,7 +102,7 @@ test('reconcileExpiredReservations cancels abandoned created MP order and releas
       return {
         ok: true,
         reservationMinutes: 15,
-        expiredOrders: [
+        expired: [
           {
             orderId: 'ORD-V09-081-1794342810215',
             experienceId: 'V09-081',
@@ -130,8 +132,8 @@ test('reconcileExpiredReservations cancels abandoned created MP order and releas
   assert.equal(res.checked, 1);
   assert.equal(res.results.length, 1);
   assert.equal(res.results[0].orderId, 'ORD-V09-081-1794342810215');
-  assert.equal(res.results[0].canceledInMp, true);
-  assert.equal(res.results[0].mpStatus, 'canceled');
+  assert.equal(res.results[0].released, true);
+  assert.equal(res.reconciled, 1);
 
   const cancelCall = mpCalls.find((c) => c.url.endsWith('/cancel'));
   assert.ok(cancelCall, 'Expected POST /v1/orders/:id/cancel to be called');
@@ -140,7 +142,8 @@ test('reconcileExpiredReservations cancels abandoned created MP order and releas
 
   const reconcileCall = gasCalls.find((c) => c.action === 'reconcileOrder');
   assert.ok(reconcileCall, 'Expected reconcileOrder to be called');
-  assert.equal(reconcileCall.mpStatus, 'cancelled');
+  assert.equal(reconcileCall.mpStatus, 'canceled');
+  assert.equal(reconcileCall.externalReference, 'ORD-V09-081-1794342810215');
 });
 
 test('reconcileExpiredReservations NEVER cancels or releases if MP order has pending/in_process/approved payment', async () => {
@@ -203,7 +206,7 @@ test('reconcileExpiredReservations NEVER cancels or releases if MP order has pen
 
   assert.equal(res.ok, true);
   assert.equal(res.results[0].preserved, true);
-  assert.equal(res.results[0].paymentStatus, 'in_process');
+  assert.equal(res.results[0].reason, 'mp_payment_pending_or_approved');
   const cancelCall = mpCalls.find((c) => c.url.endsWith('/cancel'));
   assert.equal(cancelCall, undefined, 'Must NOT cancel an order with an active/pending payment');
   const reconcileCall = gasCalls.find((c) => c.action === 'reconcileOrder');
