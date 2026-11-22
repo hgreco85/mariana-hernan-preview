@@ -319,7 +319,7 @@ export async function reconcileExpiredReservations(env, deps = {}) {
 
   const query = await appsScriptPostImpl(env, { type: 'getExpiredOrders', action: 'getExpiredOrders' });
   const data = (query && query.data) || query || {};
-  if ((query && query.status && query.status !== 200) || data.ok !== true || !Array.isArray(data.expired)) {
+  if ((query && typeof query.status === 'number' && query.status !== 200) || data.ok !== true || !Array.isArray(data.expired)) {
     return { ok: false, reason: 'expired_candidates_unavailable', checked: 0, results: [] };
   }
 
@@ -409,7 +409,7 @@ export async function reconcileExpiredReservations(env, deps = {}) {
         note: proofStatus === 'canceled' ? 'MP canceled verified by readback' : 'No MP Order after expired internal reservation'
       });
       const saved = (ack && ack.data) || ack || {};
-      if ((ack && ack.status && ack.status !== 200) || saved.ok !== true) {
+      if ((ack && typeof ack.status === 'number' && ack.status !== 200) || saved.ok !== true) {
         result.reason = (saved.error && String(saved.error)) || 'apps_script_reconcile_refused';
       } else {
         result.preserved = false;
