@@ -57,13 +57,18 @@ test('created external MP order is included only after both time checks expire',
  assert.equal(x.ops[1][2],'created');assert.equal(x.cat[1][12],'Reservada temporalmente');
 });
 test('created with no MP order and expired TTL can be safely released',()=>{
- const x=fixtures({hasMp:false});
+ const x=fixtures({hasMp:false,opState:'Reservada'});
  assert.equal(x.scan().expired.length,1);
  const r=x.reconcile({mpOrderId:'',mpStatus:'no_mp_order'});
  assert.equal(r.ok,true);assert.equal(r.released,true);
  assert.equal(x.ops[1][2],'Expirada (no abonada)');
  assert.equal(x.cat[1][12],'Disponible');assert.equal(x.cat[1][19],'');
  assert.equal(x.locked.held,false);assert.equal(x.locked.count,1);
+});
+test('created operation without external ID is held because MP acknowledgment may be lost',()=>{
+ const x=fixtures({hasMp:false,opState:'created'});
+ assert.equal(x.scan().expired.length,0);
+ assert.equal(x.reconcile({mpOrderId:'',mpStatus:'no_mp_order'}).ok,false);
 });
 test('external order requires exact MP terminal proof and matching external ref',()=>{
  const x=fixtures();
