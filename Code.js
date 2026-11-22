@@ -335,6 +335,11 @@ function applyPaymentTransitionLocked(orderId, mpStatus, mpPaymentId){
   if(currentStatus==='Aprobado' && (low==='pending'||low==='in_process'||low==='authorized')){
     return;
   }
+  // Approved payments are never reversed by late or replayed rejected, cancelled,
+  // or unknown notifications. Only explicit refund/chargeback may change state.
+  if(currentStatus==='Aprobado' && !['approved','refunded','charged_back'].includes(low)){
+    return;
+  }
 
   // Idempotency: duplicate approved notification must not overwrite confirmedAt
   if(currentStatus==='Aprobado' && low==='approved'){
