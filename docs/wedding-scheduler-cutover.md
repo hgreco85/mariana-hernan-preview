@@ -54,9 +54,19 @@ Use the wedding Google Apps Script project's native installable timer:
    originally closed) and all currently held experiences.
 2. Tests: `node --test tests/wedding_appsscript_timer.test.mjs` and the
    existing P0 safety suite. No real payment/order/reservation creation.
-3. Merge the timer PR after review. Use the already-authenticated `clasp`
-   project to push `WeddingReconciliationTimer.gs` to **this project's HEAD**.
-   Never create a fresh script ID or modify the deployed web app URL.
+3. The timer source is already merged in PR #39 and its clasp allowlist was
+   fixed in PR #40. **Never `clasp push` directly from the GitHub checkout**:
+   `main/Code.js` is NOT guaranteed identical to the effective production
+   Apps Script HEAD, and a bulk push could overwrite newer production logic.
+   Instead, use an isolated temporary directory, point `.clasp.json` only to
+   the existing script ID, run authenticated **`clasp pull` first**, verify
+   the target deployment @56 and preserve every pulled file. Add ONLY the
+   reviewed `WeddingReconciliationTimer.gs` to that pulled snapshot. Ensure
+   all previously pulled files remain byte-identical and no filenames were
+   removed. Then `clasp push` that full pulled snapshot plus the single new
+   timer file, with an immutable backup before push. Do NOT redeploy the
+   published webapp or change its deployment ID. If baseline, auth or API
+   scope cannot be verified, STOP without pushing.
 4. Call `weddingReconciliationStatus()` first (safe, no network): trigger
    count should be zero, and no existing wedding timer should be present from
    another operator. Check all owners' triggers via the Apps Script project UI.
