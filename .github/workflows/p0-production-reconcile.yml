@@ -1,0 +1,19 @@
+name: P0 production reservation reconciliation
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Reconcile expired reservations safely
+        env:
+          SHARED_SECRET: ${{ secrets.SHARED_SECRET }}
+        run: |
+          curl -fsS -X POST https://mp-webhook-production.hgreco85.workers.dev/api/reconcile-expired \
+            -H 'Content-Type: application/json' \
+            -d "{\"secret\":\"$SHARED_SECRET\"}"
