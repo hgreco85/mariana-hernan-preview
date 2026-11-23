@@ -1,3 +1,4 @@
+import { createCatalogService } from './catalog_cache.js';
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -427,8 +428,33 @@ export async function reconcileExpiredReservations(env, deps = {}) {
   return { ok: true, checked: data.expired.length, reconciled, results, reservationMinutes: data.reservationMinutes || 15 };
 }
 
-export default {
-  async fetch(request, env) {
+// Stage 2: one catalog service per isolate (display-only cache; see catalog_cache.js).
+export const catalogService = createCatalogService();
+let lastBackgroundReconcile = 0;
+function scheduleBackgroundReconcile(env, ctx, nowMs = Date.now()) {
+  if (!ctx || typeof ctx.waitUntil !== 'function') return;
+  if (nowMs - lastBackgroundReconcile < 30000) return;
+  lastBackgroundReconcile = nowMs;
+  ctx.waitUntil(reconcileExpiredReservations(env)
+    .then(r => { if (r && r.count > 0) catalogService.invalidate(); })
+    .catch(() => {}));
+}
+// Requests that can change gift state: always invalidate the public catalog cache before AND after them.
+const GIFT_STATE_PATHS = new Set(['/api/create-order', '/webhook/mp', '/api/reconcile-expired', '/api/admin/reconcile',
+  '/api/admin/cancel-order', '/api/order-status' /* confirms payment transitions */, '/api/dedication']);
+function mutatesGiftState(request, pathname) {
+  return request.method !== 'OPTIONS' && GIFT_STATE_PATHS.has(pathname);
+}
+
+const worker = {
+  async fetch(request, env, ctx) {
+    const pathname = new URL(request.url).pathname;
+    const mutating = mutatesGiftState(request, pathname);
+    if (mutating) catalogService.invalidate();
+    try { return await worker.handle(request, env, ctx); }
+    finally { if (mutating) catalogService.invalidate(); }
+  },
+  async handle(request, env, ctx) {
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS });
     }
@@ -558,9 +584,14 @@ export default {
 
     // Public catalog proxy (read-only, no secret)
     if (request.method === 'GET' && url.pathname === '/api/catalog') {
-      try { await reconcileExpiredReservations(env); } catch(e) {}
-      const info = await appsScriptGet(env, { format: 'json' });
-      return corsResponse(info.text, info.status);
+      // Reconciliation (Mercado Pago lookups) no longer blocks the public read: it runs in the background
+      // (throttled) and on the existing */5 cron. Apps Script getCatalog() still frees plain expired holds itself.
+      scheduleBackgroundReconcile(env, ctx);
+      const res = await catalogService.get({
+        fetchUpstream: () => appsScriptGet(env, { format: 'json' }),
+        waitUntil: ctx && typeof ctx.waitUntil === 'function' ? p => ctx.waitUntil(p) : null
+      });
+      return corsResponse(res.text, res.status, { 'Cache-Control': 'no-store', 'X-Catalog-Source': res.source, 'X-Catalog-Age-Ms': String(Math.round(res.ageMs)) });
     }
 
     // Create reservation and Mercado Pago order
@@ -967,3 +998,4 @@ export default {
       .catch(e => console.error('expired-reservation-cron-error', String(e && e.message || e))));
   }
 };
+export default worker;
