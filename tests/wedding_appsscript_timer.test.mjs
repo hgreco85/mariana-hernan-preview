@@ -151,6 +151,7 @@ test('clasp allowlist includes exactly the new timer file without broadening oth
   const exceptions = ignore.split(/\r?\n/).filter(row=>row.startsWith('!'));
   assert.ok(ignore.split(/\r?\n/)[0] === '**/**','deny all source by default');
   assert.equal(exceptions.filter(row=>row==='!WeddingReconciliationTimer.gs').length,1);
-  assert.equal(exceptions.filter(row=>row.startsWith('!')).length,7);
+  assert.equal(exceptions.filter(row=>row.startsWith('!')).length,8);
+  assert.equal(exceptions.filter(row=>row==='!WeddingBackup.js').length,1);
   assert.equal(exceptions.includes('!Code.js'),true);
 });

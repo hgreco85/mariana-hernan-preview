@@ -233,6 +233,13 @@ export async function createCheckoutPreference(arg1, arg2, arg3) {
 // Securely resolve Mercado Pago Orders API status
 // Only an accredited payment (approved, or processed with accredited detail) can be confirmed as approved.
 // A closed, canceled, or failed order without an accredited payment is NEVER approved.
+export function verifiedPayerName(resource) {
+  const p = resource && resource.payer;
+  if (!p || typeof p !== 'object') return '';
+  const parts = [p.first_name, p.last_name].filter(v => typeof v === 'string' && v.trim()).map(v => v.trim());
+  return (parts.join(' ') || (typeof p.name === 'string' ? p.name.trim() : '')).slice(0,120);
+}
+
 export function resolveOrderStatus(o) {
   const payments = (o && o.transactions && Array.isArray(o.transactions.payments)) ? o.transactions.payments : [];
   const approvedPayment = payments.find(p => 
@@ -730,7 +737,9 @@ export default {
               type: 'confirm',
               orderId,
               status: resolved.status,
-              paymentId: resolved.paymentId
+              paymentId: resolved.paymentId,
+              payerName: resolved.status === 'approved' ? verifiedPayerName(o) : '',
+              origin: env.LIVE_MODE === 'true' ? 'LIVE' : 'SANDBOX'
             });
           }
         }
@@ -827,6 +836,7 @@ export default {
       let mpStatus = 'pending';
       let mpPaymentId = resourceId ? String(resourceId) : '';
       let orderId = null;
+      let payerName = '';
 
       if (token && token !== 'REPLACE_WITH_MP_ACCESS_TOKEN' && resourceId) {
         const isOrderEvent = eventType === 'order' || eventTopic === 'order' || eventAction.startsWith('order.');
@@ -843,12 +853,14 @@ export default {
             const res = resolveOrderStatus(o);
             mpStatus = res.status;
             mpPaymentId = res.paymentId || mpPaymentId;
+            payerName = verifiedPayerName(o);
           }
         } else if (isMerchantOrderEvent) {
           const resp = await fetch('https://api.mercadopago.com/merchant_orders/' + encodeURIComponent(resourceId), { headers: authHeaders });
           if (resp.status === 200) {
             const m = await resp.json();
             orderId = m.external_reference || null;
+            payerName = verifiedPayerName(m);
             const payments = Array.isArray(m.payments) ? m.payments : [];
             const approved = payments.find(p => p.status === 'approved');
             if (m.order_status === 'paid' || approved) {
@@ -869,6 +881,7 @@ export default {
             mpStatus = p.status || mpStatus;
             mpPaymentId = String(p.id || mpPaymentId);
             orderId = p.external_reference || null;
+            payerName = verifiedPayerName(p);
           }
         } else {
           // Unspecified event type: probe Orders API first, then Payments API, then Merchant Orders API
@@ -880,6 +893,7 @@ export default {
             const res = resolveOrderStatus(o);
             mpStatus = res.status;
             mpPaymentId = res.paymentId || mpPaymentId;
+            payerName = verifiedPayerName(o);
             resolved = true;
           }
           if (!resolved) {
@@ -889,6 +903,7 @@ export default {
               mpStatus = p.status || mpStatus;
               mpPaymentId = String(p.id || mpPaymentId);
               orderId = p.external_reference || null;
+            payerName = verifiedPayerName(p);
               resolved = true;
             }
           }
@@ -897,6 +912,7 @@ export default {
             if (moResp.status === 200) {
               const m = await moResp.json();
               orderId = m.external_reference || null;
+            payerName = verifiedPayerName(m);
               const payments = Array.isArray(m.payments) ? m.payments : [];
               const approved = payments.find(p => p.status === 'approved');
               if (m.order_status === 'paid' || approved) {
@@ -911,12 +927,17 @@ export default {
       }
 
       if (orderId) {
-        await appsScriptPost(env, {
+        const confirmation = await appsScriptPost(env, {
           type: 'confirm',
           orderId,
           status: mpStatus,
-          paymentId: mpPaymentId
+          paymentId: mpPaymentId,
+          payerName: mpStatus === 'approved' ? payerName : '',
+          origin: env.LIVE_MODE === 'true' ? 'LIVE' : 'SANDBOX'
         });
+        if (confirmation.status < 200 || confirmation.status >= 300 || confirmation.data?.ok !== true) {
+          return new Response('confirmation persistence failed', { status: 503, headers: CORS });
+        }
       }
 
       return new Response('ok', { status: 200, headers: CORS });

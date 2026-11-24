@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import vm from 'node:vm';
 
-const html = readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../index.html'), 'utf8');
+const html = readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../index.html'), 'utf8').replace(/\r\n/g, '\n');
 const start = html.indexOf('function submitDedication(order){');
 const end = html.indexOf('\n\nconst defaults=', start);
 assert.ok(start >= 0 && end > start, 'dedication UI function exists');

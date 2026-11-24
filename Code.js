@@ -74,7 +74,7 @@ function doPost(e){
       return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
     }
     if(type === 'confirm' || type === 'mp_webhook'){
-      confirmPayment(data.orderId, data.status, data.paymentId);
+      confirmPayment(data.orderId, data.status, data.paymentId, data.payerName, data.origin);
       return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
     }
     if(type === 'mp_order_created'){
@@ -316,17 +316,22 @@ function getOrderPublic(orderId){
   };
 }
 
-function confirmPayment(orderId, mpStatus, mpPaymentId){
+function confirmPayment(orderId, mpStatus, mpPaymentId, payerName, origin){
   const lock=LockService.getScriptLock(); lock.waitLock(30000);
   try {
-    applyPaymentTransitionLocked(orderId, mpStatus, mpPaymentId);
+    applyPaymentTransitionLocked(orderId, mpStatus, mpPaymentId, payerName, origin);
   } finally { lock.releaseLock(); }
 }
 
-function applyPaymentTransitionLocked(orderId, mpStatus, mpPaymentId){
+function safeGiftText(value, limit){
+  const s=String(value||'').trim().slice(0,limit);
+  return /^[=+\-@]/.test(s) ? "'"+s : s;
+}
+
+function applyPaymentTransitionLocked(orderId, mpStatus, mpPaymentId, payerName, origin){
   const ops=opsSheet(); const opData=ops.getDataRange().getValues();
   const rowIndex=findOpRow(opData, orderId);
-  if(rowIndex<0) return;
+  if(rowIndex<0) throw new Error('Order not found');
   const currentStatus=String(opData[rowIndex][2]||'');
   const expId=String(opData[rowIndex][1]||'');
   const low=String(mpStatus||'').toLowerCase();
@@ -339,6 +344,25 @@ function applyPaymentTransitionLocked(orderId, mpStatus, mpPaymentId){
   // or unknown notifications. Only explicit refund/chargeback may change state.
   if(currentStatus==='Aprobado' && !['approved','refunded','charged_back'].includes(low)){
     return;
+  }
+
+  // Only fill missing fields from an authenticated approved payment. Never replace
+  // a guest-selected name or dedication, or silently change a recorded origin.
+  if(low==='approved'){
+    const existing=opData[rowIndex];
+    if(currentStatus==='Aprobado' && existing[7] && mpPaymentId && String(existing[7])!==String(mpPaymentId)){
+      throw new Error('Approved payment ID conflict');
+    }
+    if(existing[13] && origin && String(existing[13])!==String(origin)){
+      throw new Error('Payment origin conflict');
+    }
+    if(!String(existing[8]||'').trim() && String(payerName||'').trim()){
+      ops.getRange(rowIndex+1,9).setValue(safeGiftText(payerName,120));
+      ops.getRange(rowIndex+1,9).setNote('Nombre recuperado del pagador de Mercado Pago; puede ser reemplazado por el nombre elegido por el invitado.');
+    }
+    if(!String(existing[13]||'').trim() && ['LIVE','SANDBOX'].includes(origin)){
+      ops.getRange(rowIndex+1,14).setValue(origin);
+    }
   }
 
   // Idempotency: duplicate approved notification must not overwrite confirmedAt
@@ -464,13 +488,18 @@ function handleMpWebhook(data){
 }
 
 function saveDedication(orderId, guestName, dedication){
-  const st=getOrderStatus(orderId);
-  if(String(st.status).toLowerCase().indexOf('aprob')===-1) throw new Error('Pago no confirmado');
-  const sh=opsSheet(); const data=sh.getDataRange().getValues(); const i=findOpRow(data,orderId);
-  if(i<0) throw new Error('Orden no encontrada');
-  if(guestName) sh.getRange(i+1,9).setValue(String(guestName).slice(0,120));
-  if(dedication) sh.getRange(i+1,10).setValue(String(dedication).slice(0,500));
-  return {ok:true};
+  const lock=LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    const sh=opsSheet(); const data=sh.getDataRange().getValues(); const i=findOpRow(data,orderId);
+    if(i<0) throw new Error('Orden no encontrada');
+    if(String(data[i][2])!=='Aprobado') throw new Error('Pago no confirmado');
+    if(String(guestName||'').trim()) {
+      sh.getRange(i+1,9).setValue(safeGiftText(guestName,120));
+      sh.getRange(i+1,9).setNote('Nombre elegido por el invitado.');
+    }
+    if(String(dedication||'').trim()) sh.getRange(i+1,10).setValue(safeGiftText(dedication,500));
+    return {ok:true};
+  } finally { lock.releaseLock(); }
 }
 
 function updateDescriptions(rows){

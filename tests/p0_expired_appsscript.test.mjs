@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-const source=fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../Code.js'),'utf8');
+const source=fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../Code.js'),'utf8').replace(/\r\n/g,'\n');
 const scanStart=source.indexOf("    if(type === 'getExpiredOrders'){");
 const scanEnd=source.indexOf("\n\n    return ContentService.createTextOutput(JSON.stringify({ error: 'unknown type' })",scanStart);
 const saveStart=source.indexOf("function reconcileSingleOrder(");
