@@ -927,7 +927,7 @@ export default {
       }
 
       if (orderId) {
-        await appsScriptPost(env, {
+        const confirmation = await appsScriptPost(env, {
           type: 'confirm',
           orderId,
           status: mpStatus,
@@ -935,6 +935,9 @@ export default {
           payerName: mpStatus === 'approved' ? payerName : '',
           origin: env.LIVE_MODE === 'true' ? 'LIVE' : 'SANDBOX'
         });
+        if (confirmation.status < 200 || confirmation.status >= 300 || confirmation.data?.ok !== true) {
+          return new Response('confirmation persistence failed', { status: 503, headers: CORS });
+        }
       }
 
       return new Response('ok', { status: 200, headers: CORS });
