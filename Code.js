@@ -331,7 +331,7 @@ function safeGiftText(value, limit){
 function applyPaymentTransitionLocked(orderId, mpStatus, mpPaymentId, payerName, origin){
   const ops=opsSheet(); const opData=ops.getDataRange().getValues();
   const rowIndex=findOpRow(opData, orderId);
-  if(rowIndex<0) return;
+  if(rowIndex<0) throw new Error('Order not found');
   const currentStatus=String(opData[rowIndex][2]||'');
   const expId=String(opData[rowIndex][1]||'');
   const low=String(mpStatus||'').toLowerCase();
@@ -350,7 +350,7 @@ function applyPaymentTransitionLocked(orderId, mpStatus, mpPaymentId, payerName,
   // a guest-selected name or dedication, or silently change a recorded origin.
   if(low==='approved'){
     const existing=opData[rowIndex];
-    if(existing[7] && mpPaymentId && String(existing[7])!==String(mpPaymentId)){
+    if(currentStatus==='Aprobado' && existing[7] && mpPaymentId && String(existing[7])!==String(mpPaymentId)){
       throw new Error('Approved payment ID conflict');
     }
     if(existing[13] && origin && String(existing[13])!==String(origin)){
